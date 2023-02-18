@@ -11,8 +11,10 @@ import (
 )
 
 type TCPSvrArgs struct {
-	Addr  string
-	OnMsg OnHandlerOnce
+	Addr         string
+	OnMsg        OnHandlerOnce
+	OnConnect    OnConnect
+	OnDisconnect OnDisconnect
 }
 
 type TCPServer struct {
@@ -20,7 +22,9 @@ type TCPServer struct {
 	listener *net.TCPListener
 	closeCh  chan struct{}
 
-	onMsg OnHandlerOnce
+	onMsg        OnHandlerOnce
+	onConnect    OnConnect
+	onDisconnect OnDisconnect
 
 	bufMgr *bufferManager
 
@@ -38,11 +42,13 @@ func NewTCPServer(ctx context.Context, arg TCPSvrArgs) (*TCPServer, error) {
 		return nil, fmt.Errorf("listen addr[%s] failed %w", arg.Addr, err)
 	}
 	svr := &TCPServer{
-		listener: listener,
-		closeCh:  make(chan struct{}),
-		sockets:  make(map[*TCPSocket]bool),
-		bufMgr:   newBufferManager(),
-		onMsg:    arg.OnMsg,
+		listener:     listener,
+		closeCh:      make(chan struct{}),
+		sockets:      make(map[*TCPSocket]bool),
+		bufMgr:       newBufferManager(),
+		onMsg:        arg.OnMsg,
+		onConnect:    arg.OnConnect,
+		onDisconnect: arg.OnDisconnect,
 	}
 	svr.wg.Add(1)
 	go svr.accept(ctx)
@@ -72,6 +78,9 @@ func (svr *TCPServer) accept(ctx context.Context) {
 			conn:           conn,
 			readBufferPool: svr.bufMgr.newBufferPool(),
 			onMsg:          svr.onMsg,
+			onConnect:      svr.onConnect,
+			onDisconnect:   svr.onDisconnect,
+			releaseFn:      svr.delSocket,
 		})
 		svr.addSocket(ctx, s)
 	}

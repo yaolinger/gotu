@@ -35,6 +35,7 @@ func (bp *bufferPool) put(cache []byte) {
 	for len(bp.cache) >= readBufferSize {
 		tempBuf := bp.cache[0:readBufferSize]
 		bp.pool.Put(&tempBuf)
+		bp.cache = bp.cache[readBufferSize:]
 	}
 }
 

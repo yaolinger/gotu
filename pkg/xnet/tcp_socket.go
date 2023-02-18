@@ -2,6 +2,7 @@ package xnet
 
 import (
 	"context"
+	"fmt"
 	"gonet/pkg/xlog"
 	"io"
 	"net"
@@ -15,19 +16,26 @@ type TCPSocketArgs struct {
 	conn           *net.TCPConn
 	readBufferPool *bufferPool
 	onMsg          OnHandlerOnce
+	onConnect      OnConnect
+	onDisconnect   OnDisconnect
+	releaseFn      func(ctx context.Context, ts *TCPSocket)
 }
 
 type TCPSocket struct {
 	conn           *net.TCPConn
 	readBufferPool *bufferPool
 	readCaches     []byte
+	writeCh        chan []byte   // 写消息缓存
+	closeCh        chan struct{} // 关闭channel
 
-	onMsg OnHandlerOnce
+	onMsg        OnHandlerOnce
+	onConnect    OnConnect
+	onDisconnect OnDisconnect
+	releaseFn    func(ctx context.Context, ts *TCPSocket)
 
 	wg sync.WaitGroup
 }
 
-// TODO
 func newTCPSocket(ctx context.Context, arg TCPSocketArgs) *TCPSocket {
 	// arg.conn.SetNoDelay(true)
 	// arg.conn.SetReadBuffer
@@ -37,7 +45,12 @@ func newTCPSocket(ctx context.Context, arg TCPSocketArgs) *TCPSocket {
 		conn:           arg.conn,
 		readBufferPool: arg.readBufferPool,
 		readCaches:     make([]byte, 0),
+		writeCh:        make(chan []byte, writeChanLimit),
+		closeCh:        make(chan struct{}),
 		onMsg:          arg.onMsg,
+		onConnect:      arg.onConnect,
+		onDisconnect:   arg.onDisconnect,
+		releaseFn:      arg.releaseFn,
 	}
 
 	s.wg.Add(2)
@@ -47,14 +60,16 @@ func newTCPSocket(ctx context.Context, arg TCPSocketArgs) *TCPSocket {
 }
 
 func (sock *TCPSocket) readLoop(ctx context.Context) {
-	var readErr error
+	state := sock.onConnect(ctx, sock)
 
+	var readErr error
 	defer func() {
 		if readErr != nil {
 			xlog.Get(ctx).Warn("Read loop exit with error.", zap.Any("err", readErr))
 		}
+		close(sock.closeCh)
+		sock.onDisconnect(ctx, state)
 	}()
-
 	defer sock.wg.Done()
 
 	for {
@@ -77,11 +92,10 @@ func (sock *TCPSocket) readLoop(ctx context.Context) {
 		sock.readBufferPool.put(bytes[n:])
 		// 合并cache
 		sock.readCaches = append(sock.readCaches, bytes[0:n]...)
-
 		isKeepCache := false
 		for !isKeepCache {
 			// do handler
-			reqCount, err := sock.onMsg(ctx, sock.readCaches)
+			reqCount, err := sock.onMsg(ctx, state, sock.readCaches)
 			if err != nil {
 				readErr = err
 				return
@@ -94,17 +108,91 @@ func (sock *TCPSocket) readLoop(ctx context.Context) {
 				sock.readCaches = sock.readCaches[reqCount:]
 			}
 		}
-
 	}
 }
 
 func (sock *TCPSocket) writeLoop(ctx context.Context) {
+	var writeErr error
+	defer func() {
+		if writeErr != nil {
+			xlog.Get(ctx).Warn("Write loop exit with error", zap.Any("err", writeErr))
+		}
+		_ = sock.conn.Close()
+		sock.releaseFn(ctx, sock)
+	}()
+
 	defer sock.wg.Done()
-	// TODO
+
+	waitMsg := func() ([]byte, bool) {
+		// 阻塞并等待数据
+		var msg []byte
+		ret := false
+		select {
+		case data := <-sock.writeCh:
+			msg = append(msg, data...)
+		case <-sock.closeCh:
+			ret = true
+		}
+
+		// 非阻塞获取数据
+	loop:
+		for {
+			select {
+			case data := <-sock.writeCh:
+				msg = append(msg, data...)
+			default:
+				break loop
+			}
+		}
+		return msg, ret
+	}
+
+	isClosed := false
+	for !isClosed {
+		var msg []byte
+		msg, isClosed = waitMsg()
+		if len(msg) == 0 {
+			break
+		}
+		if err := sock.write(msg); err != nil {
+			writeErr = err
+			break
+		}
+	}
 }
 
+// 写数据
+func (sock *TCPSocket) write(msg []byte) error {
+	for {
+		if err := sock.conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+			return err
+		}
+
+		n, err := sock.conn.Write(msg)
+		if err != nil {
+			return err
+		}
+		if n >= len(msg) {
+			break
+		}
+		msg = msg[n:]
+	}
+	return nil
+}
+
+func (sock *TCPSocket) SendMsg(ctx context.Context, msg []byte) error {
+	select {
+	case sock.writeCh <- msg:
+		return nil
+	case <-sock.closeCh:
+		return fmt.Errorf("sock already close")
+	default:
+		return fmt.Errorf("msg overflow")
+	}
+}
+
+// close =》 read loop => closeCh =》write loop
 func (sock *TCPSocket) Close(ctx context.Context) {
-	//close(sock.closeCh)
 	sock.conn.CloseRead()
 	sock.wg.Wait()
 }
