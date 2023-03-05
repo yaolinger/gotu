@@ -12,7 +12,7 @@ import (
 )
 
 type State struct {
-	sock *xnet.TCPSocket
+	sock xnet.Socket
 }
 
 func TestTCP(t *testing.T) {
@@ -22,7 +22,7 @@ func TestTCP(t *testing.T) {
 
 	svr, err := xnet.NewTCPServer(ctx, xnet.TCPSvrArgs{
 		Addr: ":9999",
-		OnConnect: func(ctx context.Context, sock *xnet.TCPSocket) interface{} {
+		OnConnect: func(ctx context.Context, sock xnet.Socket) interface{} {
 			return &State{sock: sock}
 		},
 		OnDisconnect: func(ctx context.Context, state interface{}) {
@@ -53,7 +53,7 @@ func TestTCP(t *testing.T) {
 
 	cli, err := xnet.NewTCPClient(ctx, xnet.TCPCliArgs{
 		Addr: ":9999",
-		OnConnect: func(ctx context.Context, sock *xnet.TCPSocket) interface{} {
+		OnConnect: func(ctx context.Context, sock xnet.Socket) interface{} {
 			return nil
 		},
 		OnDisconnect: func(ctx context.Context, state interface{}) {
