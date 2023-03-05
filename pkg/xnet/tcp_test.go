@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"gonet/pkg/xlog"
+	"gonet/pkg/xmsg"
 	"gonet/pkg/xnet"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,7 +20,7 @@ type State struct {
 func TestTCP(t *testing.T) {
 	ctx := context.Background()
 
-	// TODO 未做分包处理
+	var wg sync.WaitGroup
 
 	svr, err := xnet.NewTCPServer(ctx, xnet.TCPSvrArgs{
 		Addr: ":9999",
@@ -28,18 +30,21 @@ func TestTCP(t *testing.T) {
 		OnDisconnect: func(ctx context.Context, state interface{}) {
 			xlog.Get(ctx).Debug("Svr disconnect")
 		},
-		OnMsg: func(ctx context.Context, state interface{}, msg []byte) (int, error) {
-			if len(msg) == 0 {
-				return 0, nil
+		OnMsg: xmsg.ParseMsgWarp(func(ctx context.Context, arg xmsg.MsgArgs) error {
+			xlog.Get(ctx).Debug("Svr recv msg", zap.String("msg", string(arg.Payload)))
+			s := arg.State.(*State)
+			msg, err := xmsg.PackMsg(ctx, xmsg.PackMsgArgs{
+				Payload: []byte("svr data"),
+			})
+			if err != nil {
+				return err
 			}
-			xlog.Get(ctx).Debug("Svr recv msg", zap.String("msg", string(msg)))
-			s := state.(*State)
-			if err := s.sock.SendMsg(ctx, []byte("svr data")); err != nil {
+			if err := s.sock.SendMsg(ctx, msg); err != nil {
 				xlog.Get(ctx).Warn("Svr send msg failed.", zap.Any("err", err))
 			}
 
-			return len(msg), nil
-		},
+			return nil
+		}),
 	})
 
 	if err != nil {
@@ -59,23 +64,29 @@ func TestTCP(t *testing.T) {
 		OnDisconnect: func(ctx context.Context, state interface{}) {
 			xlog.Get(ctx).Debug("Cli disconnect")
 		},
-		OnMsg: func(ctx context.Context, state interface{}, msg []byte) (int, error) {
-			if len(msg) == 0 {
-				return 0, nil
-			}
-			xlog.Get(ctx).Debug("Cli recv msg", zap.String("msg", string(msg)))
-			return len(msg), nil
-		},
+		OnMsg: xmsg.ParseMsgWarp(func(ctx context.Context, arg xmsg.MsgArgs) error {
+			defer wg.Done()
+			xlog.Get(ctx).Debug("Cli recv msg", zap.String("msg", string(arg.Payload)))
+			return nil
+		}),
 	})
 	if err != nil {
 		panic(err)
 	}
 
 	for i := 0; i < 10; i++ {
-		if err := cli.SendMsg(ctx, []byte(fmt.Sprintf("cli data %v", i))); err != nil {
+		wg.Add(1)
+		msg, err := xmsg.PackMsg(ctx, xmsg.PackMsgArgs{
+			Payload: []byte(fmt.Sprintf("cli data %v", i)),
+		})
+		if err != nil {
+			panic(err)
+		}
+		if err := cli.SendMsg(ctx, msg); err != nil {
 			xlog.Get(ctx).Warn("Cli send msg failed.", zap.Any("err", err))
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+	wg.Wait()
 	cli.Close(ctx)
 }

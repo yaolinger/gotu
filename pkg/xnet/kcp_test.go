@@ -3,7 +3,9 @@ package xnet_test
 import (
 	"context"
 	"gonet/pkg/xlog"
+	"gonet/pkg/xmsg"
 	"gonet/pkg/xnet"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,7 +15,7 @@ import (
 
 func TestKCPServer(t *testing.T) {
 	ctx := context.Background()
-	data := []byte("buginventer")
+	var wg sync.WaitGroup
 
 	addr := ":9993"
 	svr, err := xnet.NewKCPServer(ctx, xnet.KCPServerArgs{
@@ -22,14 +24,18 @@ func TestKCPServer(t *testing.T) {
 		OnDisconnect: func(ctx context.Context, state interface{}) {
 			xlog.Get(ctx).Info("Cli disconnect")
 		},
-		OnMsg: func(ctx context.Context, state interface{}, msg []byte) (int, error) {
-			xlog.Get(ctx).Info("Svr recv msg", zap.Any("msg", string(msg)))
-			sock := state.(xnet.Socket)
-			if err := sock.SendMsg(ctx, []byte("echo data")); err != nil {
-				xlog.Get(ctx).Warn("Send svr msg failed.", zap.Any("err", err))
+		OnMsg: xmsg.ParseMsgWarp(func(ctx context.Context, arg xmsg.MsgArgs) error {
+			xlog.Get(ctx).Info("Svr recv msg", zap.Any("msg", string(arg.Payload)))
+			sock := arg.State.(xnet.Socket)
+			msg, err := xmsg.PackMsg(ctx, xmsg.PackMsgArgs{
+				Payload: []byte("svr data"),
+			})
+			if err != nil {
+				return err
 			}
-			return len(msg), nil
-		},
+			return sock.SendMsg(ctx, msg)
+
+		}),
 	})
 	if err != nil {
 		panic(err)
@@ -40,27 +46,37 @@ func TestKCPServer(t *testing.T) {
 		OnDisconnect: func(ctx context.Context, state interface{}) {
 			xlog.Get(ctx).Info("Svr disconnect")
 		},
-		OnMsg: func(ctx context.Context, state interface{}, msg []byte) (int, error) {
-			xlog.Get(ctx).Info("Cli recv msg", zap.Any("msg", string(msg)))
-			return len(msg), nil
-		},
+		OnMsg: xmsg.ParseMsgWarp(func(ctx context.Context, arg xmsg.MsgArgs) error {
+			defer wg.Done()
+			xlog.Get(ctx).Info("Cli recv msg", zap.Any("msg", string(arg.Payload)))
+			return nil
+		}),
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	data := []byte("buginventer")
+	msg, err := xmsg.PackMsg(ctx, xmsg.PackMsgArgs{
+		Payload: data,
 	})
 	if err != nil {
 		panic(err)
 	}
 
 	for i := 0; i < 10; i++ {
-		err = cli.SendMsg(ctx, data)
+		wg.Add(1)
+		err = cli.SendMsg(ctx, msg)
 		if err != nil {
 			panic(err)
 		}
-		time.Sleep(10 * time.Microsecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 
-	time.Sleep(2 * time.Second)
+	wg.Wait()
 
 	cli.Close(ctx)
-	time.Sleep(2 * time.Second)
+	time.Sleep(1 * time.Second)
 	svr.Close(ctx)
 	xlog.Get(ctx).Info("KCP SNMP", zap.Any("data", kcp.DefaultSnmp.Copy()))
 }
