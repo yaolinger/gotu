@@ -21,7 +21,11 @@ const (
 	kcpNoDelay    = 1    // 1:RTO=30ms,0:RTO=100ms
 	kcpInterval   = 20   // 工作间隔(越小越块,cpu越高, 10, 20, 30, 40)
 	kcpResend     = 2    // 快速重传(0关闭)
-	kcpNC         = 1    // 是否关闭流空(0:开启,1:关闭)
+	kcpNC         = 1    // 是否关闭拥塞算法(0:开启,1:关闭)
+
+	// 所罗门编码: 15个数据包接收到任意10个数据包都可以恢复全部源数据包
+	kcpFecDataShards   = 10 // fec源数据包数量
+	kcpFecParityShards = 5  // fec生成数据包数量
 )
 
 // 消息处理
