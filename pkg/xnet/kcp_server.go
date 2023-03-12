@@ -33,7 +33,7 @@ type KCPServer struct {
 }
 
 func NewKCPServer(ctx context.Context, arg KCPServerArgs) (*KCPServer, error) {
-	listener, err := kcp.ListenWithOptions(arg.Addr, nil, 0, 0)
+	listener, err := kcp.ListenWithOptions(arg.Addr, nil, kcpFecDataShards, kcpFecParityShards)
 	if err != nil {
 		return nil, err
 	}

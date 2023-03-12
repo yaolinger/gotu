@@ -21,7 +21,7 @@ type KCPClientArgs struct {
 }
 
 func NewKCPClient(ctx context.Context, arg KCPClientArgs) (*KCPClient, error) {
-	conn, err := kcp.DialWithOptions(arg.Addr, nil, 0, 0)
+	conn, err := kcp.DialWithOptions(arg.Addr, nil, kcpFecDataShards, kcpFecParityShards)
 	if err != nil {
 		return nil, err
 	}
