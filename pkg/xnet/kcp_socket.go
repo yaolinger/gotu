@@ -29,12 +29,12 @@ type kcpSocketArgs struct {
 type KCPSocket struct {
 	conn         *kcp.UDPSession
 	readBufPool  *bufferPool
-	onMsg        OnHandlerOnce
 	onConnect    OnConnect
 	onDisconnect OnDisconnect
 	releaseFn    func(ctx context.Context, sock *KCPSocket)
 	readCaches   []byte
 	writeCh      chan []byte // 写消息缓存
+	mux          *kcpMux
 
 	wg sync.WaitGroup
 
@@ -51,12 +51,12 @@ func newKCPSocket(ctx context.Context, arg kcpSocketArgs) *KCPSocket {
 	sock := &KCPSocket{
 		conn:         arg.conn,
 		readBufPool:  arg.readBufPool,
-		onMsg:        arg.onMsg,
 		onConnect:    arg.onConnect,
 		onDisconnect: arg.onDisconnect,
 		releaseFn:    arg.releaseFn,
 		readCaches:   make([]byte, 0),
 		writeCh:      make(chan []byte, writeChanLimit),
+		mux:          newKCPMux(arg.onMsg),
 		closeCh:      make(chan struct{}),
 		closeFlag:    kcpSocketStart,
 	}
@@ -104,9 +104,11 @@ func (sock *KCPSocket) readLoop(ctx context.Context) {
 
 		isKeepCache := false
 		for !isKeepCache {
-			reqCount, err := sock.onMsg(ctx, state, sock.readCaches)
+			reqCount, err := sock.mux.onMsg(ctx, state, sock.readCaches)
 			if err != nil {
-				readErr = err
+				if err != io.EOF {
+					readErr = err
+				}
 				return
 			}
 			if reqCount == 0 {
@@ -183,7 +185,17 @@ func (sock *KCPSocket) writeLoop(ctx context.Context) {
 	}
 }
 
-func (sock *KCPSocket) SendMsg(ctx context.Context, msg []byte) error {
+// 逻辑层调用
+func (sock *KCPSocket) SendMsg(ctx context.Context, payload []byte) error {
+	return sock.send(ctx, false, payload)
+}
+
+// 内置发送
+func (sock *KCPSocket) send(ctx context.Context, inline bool, payload []byte) error {
+	msg, err := sock.mux.packMsg(inline, payload)
+	if err != nil {
+		return err
+	}
 	select {
 	case sock.writeCh <- msg:
 		return nil
@@ -195,6 +207,7 @@ func (sock *KCPSocket) SendMsg(ctx context.Context, msg []byte) error {
 }
 
 func (sock *KCPSocket) Close(ctx context.Context) {
+	sock.mux.close(ctx, sock)
 	sock.closeOnce()
 	sock.wg.Wait()
 }
