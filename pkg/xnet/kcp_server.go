@@ -15,7 +15,7 @@ type KCPServerArgs struct {
 	OnMsg        OnHandlerOnce
 	OnConnect    OnConnect
 	OnDisconnect OnDisconnect
-	// Fin          PackKCPFinalMsg
+	IsInline     bool // 是否开启内置协议(握手，挥手)
 }
 
 type KCPServer struct {
@@ -27,6 +27,7 @@ type KCPServer struct {
 	onMsg        OnHandlerOnce
 	onConnect    OnConnect
 	onDisconnect OnDisconnect
+	isInline     bool
 
 	mu      sync.Mutex
 	sockets map[*KCPSocket]bool
@@ -47,6 +48,7 @@ func NewKCPServer(ctx context.Context, arg KCPServerArgs) (*KCPServer, error) {
 		onMsg:        arg.OnMsg,
 		onConnect:    arg.OnConnect,
 		onDisconnect: arg.OnDisconnect,
+		isInline:     arg.IsInline,
 	}
 
 	svr.wg.Add(1)
@@ -71,15 +73,18 @@ func (svr *KCPServer) accept(ctx context.Context) {
 			xlog.Get(ctx).Warn("Accept kcp failed.", zap.Any("err", err))
 			continue
 		}
-		ks := newKCPSocket(ctx, kcpSocketArgs{
+		ks, err := newKCPSocket(ctx, kcpSocketArgs{
 			conn:         conn,
 			readBufPool:  svr.bufMgr.newBufferPool(),
-			onMsg:        svr.onMsg,
+			mux:          newKCPMux(svr.onMsg, svr.isInline, true),
 			onConnect:    svr.onConnect,
 			onDisconnect: svr.onDisconnect,
 			releaseFn:    svr.deleteSocket,
-			//fin:         arg.Fin,
 		})
+		if err != nil {
+			xlog.Get(ctx).Warn("New kcp socket failed.", zap.Any("err", err))
+			continue
+		}
 		svr.addSocket(ctx, ks)
 	}
 }

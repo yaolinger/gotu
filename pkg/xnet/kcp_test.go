@@ -36,6 +36,7 @@ func TestKCPServer(t *testing.T) {
 			return sock.SendMsg(ctx, msg)
 
 		}),
+		IsInline: true,
 	})
 	if err != nil {
 		panic(err)
@@ -51,6 +52,7 @@ func TestKCPServer(t *testing.T) {
 			xlog.Get(ctx).Info("Cli recv msg", zap.Any("msg", string(arg.Payload)))
 			return nil
 		}),
+		IsInline: true,
 	})
 	if err != nil {
 		panic(err)

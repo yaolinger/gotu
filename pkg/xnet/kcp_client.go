@@ -16,8 +16,7 @@ type KCPClientArgs struct {
 	OnMsg        OnHandlerOnce
 	OnConnect    OnConnect
 	OnDisconnect OnDisconnect
-
-	// Fin          PackKCPFinalMsg
+	IsInline     bool // 是否开启内置协议(握手，挥手)
 }
 
 func NewKCPClient(ctx context.Context, arg KCPClientArgs) (*KCPClient, error) {
@@ -27,15 +26,17 @@ func NewKCPClient(ctx context.Context, arg KCPClientArgs) (*KCPClient, error) {
 	}
 	bufMgr := newBufferManager()
 
-	sock := newKCPSocket(ctx, kcpSocketArgs{
+	sock, err := newKCPSocket(ctx, kcpSocketArgs{
 		conn:         conn,
-		onMsg:        arg.OnMsg,
+		mux:          newKCPMux(arg.OnMsg, arg.IsInline, false),
 		onConnect:    arg.OnConnect,
 		onDisconnect: arg.OnDisconnect,
 		releaseFn:    func(ctx context.Context, sock *KCPSocket) {},
 		readBufPool:  bufMgr.newBufferPool(),
-		//fin:          arg.Fin,
 	})
+	if err != nil {
+		return nil, err
+	}
 	return &KCPClient{sock: sock, bufMgr: bufMgr}, nil
 }
 
