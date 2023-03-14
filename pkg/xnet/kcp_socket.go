@@ -17,13 +17,12 @@ import (
 
 type kcpSocketArgs struct {
 	conn         *kcp.UDPSession
-	onMsg        OnHandlerOnce
 	onConnect    OnConnect
 	onDisconnect OnDisconnect
+	mux          *kcpMux
 	releaseFn    func(ctx context.Context, sock *KCPSocket)
 
 	readBufPool *bufferPool
-	//fin         PackKCPFinalMsg
 }
 
 type KCPSocket struct {
@@ -42,7 +41,7 @@ type KCPSocket struct {
 	closeCh   chan struct{} // 关闭Channel
 }
 
-func newKCPSocket(ctx context.Context, arg kcpSocketArgs) *KCPSocket {
+func newKCPSocket(ctx context.Context, arg kcpSocketArgs) (*KCPSocket, error) {
 	arg.conn.SetStreamMode(true)
 	arg.conn.SetWriteDelay(false)
 	arg.conn.SetACKNoDelay(kcpAckNoDelay)
@@ -56,7 +55,7 @@ func newKCPSocket(ctx context.Context, arg kcpSocketArgs) *KCPSocket {
 		releaseFn:    arg.releaseFn,
 		readCaches:   make([]byte, 0),
 		writeCh:      make(chan []byte, writeChanLimit),
-		mux:          newKCPMux(arg.onMsg),
+		mux:          arg.mux,
 		closeCh:      make(chan struct{}),
 		closeFlag:    kcpSocketStart,
 	}
@@ -64,7 +63,12 @@ func newKCPSocket(ctx context.Context, arg kcpSocketArgs) *KCPSocket {
 	sock.wg.Add(2)
 	go sock.readLoop(ctx)
 	go sock.writeLoop(ctx)
-	return sock
+
+	if err := sock.mux.init(ctx, sock); err != nil {
+		sock.closeForce(ctx)
+		return nil, err
+	}
+	return sock, nil
 }
 
 func (sock *KCPSocket) readLoop(ctx context.Context) {
@@ -104,7 +108,7 @@ func (sock *KCPSocket) readLoop(ctx context.Context) {
 
 		isKeepCache := false
 		for !isKeepCache {
-			reqCount, err := sock.mux.onMsg(ctx, state, sock.readCaches)
+			reqCount, err := sock.mux.onMsg(ctx, sock, state, sock.readCaches)
 			if err != nil {
 				if err != io.EOF {
 					readErr = err
@@ -208,6 +212,10 @@ func (sock *KCPSocket) send(ctx context.Context, inline bool, payload []byte) er
 
 func (sock *KCPSocket) Close(ctx context.Context) {
 	sock.mux.close(ctx, sock)
+	sock.closeForce(ctx)
+}
+
+func (sock *KCPSocket) closeForce(ctx context.Context) {
 	sock.closeOnce()
 	sock.wg.Wait()
 }
