@@ -15,7 +15,7 @@ type mail struct {
 }
 
 func newMail(ctx context.Context, t mailType, req interface{}) *mail {
-	return &mail{ctx: ctx, t: t, req: req, resultCh: make(chan *result)}
+	return &mail{ctx: ctx, t: t, req: req, resultCh: make(chan *result, 1)}
 }
 
 type mailBox struct {
