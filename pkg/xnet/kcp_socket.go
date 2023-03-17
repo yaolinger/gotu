@@ -3,10 +3,10 @@ package xnet
 import (
 	"context"
 	"fmt"
+	"gonet/pkg/xcommon"
 	"gonet/pkg/xlog"
 	"io"
 	"net"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -35,7 +35,7 @@ type KCPSocket struct {
 	writeCh      chan []byte // 写消息缓存
 	mux          *kcpMux
 
-	wg sync.WaitGroup
+	wg xcommon.WaitGroup
 
 	closeFlag int32         // 关闭标识
 	closeCh   chan struct{} // 关闭Channel
@@ -84,7 +84,7 @@ func (sock *KCPSocket) readLoop(ctx context.Context) {
 		sock.closeOnce()
 	}()
 
-	defer sock.wg.Done()
+	defer sock.wg.Done(ctx)
 
 	for {
 		// timeout
@@ -153,7 +153,7 @@ func (sock *KCPSocket) writeLoop(ctx context.Context) {
 		_ = sock.conn.Close()
 	}()
 
-	defer sock.wg.Done()
+	defer sock.wg.Done(ctx)
 
 	waitMsg := func() ([]byte, bool) {
 		// 阻塞等待数据

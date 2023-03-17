@@ -3,10 +3,10 @@ package xnet
 import (
 	"context"
 	"fmt"
+	"gonet/pkg/xcommon"
 	"gonet/pkg/xlog"
 	"io"
 	"net"
-	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -33,7 +33,7 @@ type TCPSocket struct {
 	onDisconnect OnDisconnect
 	releaseFn    func(ctx context.Context, ts *TCPSocket)
 
-	wg sync.WaitGroup
+	wg xcommon.WaitGroup
 }
 
 func newTCPSocket(ctx context.Context, arg TCPSocketArgs) *TCPSocket {
@@ -70,7 +70,7 @@ func (sock *TCPSocket) readLoop(ctx context.Context) {
 		close(sock.closeCh)
 		sock.onDisconnect(ctx, state)
 	}()
-	defer sock.wg.Done()
+	defer sock.wg.Done(ctx)
 
 	for {
 		if err := sock.conn.SetReadDeadline(time.Now().Add(readTimeout)); err != nil {
@@ -121,7 +121,7 @@ func (sock *TCPSocket) writeLoop(ctx context.Context) {
 		sock.releaseFn(ctx, sock)
 	}()
 
-	defer sock.wg.Done()
+	defer sock.wg.Done(ctx)
 
 	waitMsg := func() ([]byte, bool) {
 		// 阻塞并等待数据
