@@ -90,16 +90,14 @@ func (svr *KCPServer) accept(ctx context.Context) {
 }
 
 func (svr *KCPServer) Close(ctx context.Context) {
-	close(svr.closeCh)
-	svr.listener.Close()
-	svr.wg.Wait()
-
 	svr.mu.Lock()
 	defer svr.mu.Unlock()
 	for xs := range svr.sockets {
 		xs.Close(ctx)
 	}
 
+	close(svr.closeCh)
+	svr.listener.Close()
 	svr.wg.Wait()
 	xlog.Get(ctx).Debug("KCP server close success.")
 }
