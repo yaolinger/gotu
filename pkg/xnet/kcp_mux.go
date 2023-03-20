@@ -32,6 +32,9 @@ var (
 
 	kcpInitTimeout  = 300 * time.Millisecond // 握手流程
 	kcpCloseTimeout = 300 * time.Millisecond // 挥手流程
+
+	kcpMuxUninit int32 = 0 // 未初始化
+	kcpMuxInit   int32 = 1 // 初始化
 )
 
 // 转换
@@ -75,7 +78,8 @@ type kcpExchange struct {
 type kcpMux struct {
 	isInline bool
 
-	once sync.Once
+	initFlag  int32
+	closeOnce sync.Once
 
 	state    int32
 	isListen bool
@@ -86,7 +90,12 @@ type kcpMux struct {
 }
 
 func newKCPMux(handler OnHandlerOnce, isInline bool, isListen bool) *kcpMux {
-	m := &kcpMux{isInline: isInline, isListen: isListen, closeCh: make(chan struct{}, 1), initCh: make(chan struct{}, 1), handler: handler}
+	m := &kcpMux{isInline: isInline,
+		isListen: isListen,
+		initFlag: kcpMuxUninit,
+		closeCh:  make(chan struct{}, 1),
+		initCh:   make(chan struct{}, 1),
+		handler:  handler}
 	if isListen {
 		m.state = kmsListen
 	} else {
@@ -210,26 +219,28 @@ func (mux *kcpMux) inlineProtocol(ctx context.Context, sock *KCPSocket, ke *kcpE
 
 // 发起握手
 func (mux *kcpMux) init(ctx context.Context, sock *KCPSocket) error {
-	// 未开启内置协议
-	if !mux.isInline {
-		return nil
-	}
-	if atomic.LoadInt32(&mux.state) == kmsSynSent {
-		mux.sendInline(ctx, sock, kmsSynSent)
-	}
-	ticker := time.NewTicker(kcpInitTimeout)
-	defer ticker.Stop()
-	select {
-	case <-ticker.C:
-		return fmt.Errorf("mux init timeout %v", kmsString(atomic.LoadInt32(&mux.state)))
-	case <-mux.initCh:
+	if atomic.CompareAndSwapInt32(&mux.initFlag, kcpMuxUninit, kcpMuxInit) {
+		// 未开启内置协议
+		if !mux.isInline {
+			return nil
+		}
+		if atomic.LoadInt32(&mux.state) == kmsSynSent {
+			mux.sendInline(ctx, sock, kmsSynSent)
+		}
+		ticker := time.NewTicker(kcpInitTimeout)
+		defer ticker.Stop()
+		select {
+		case <-ticker.C:
+			return fmt.Errorf("mux init timeout %v", kmsString(atomic.LoadInt32(&mux.state)))
+		case <-mux.initCh:
+		}
 	}
 	return nil
 }
 
 // 发起挥手
 func (mux *kcpMux) close(ctx context.Context, sock *KCPSocket) {
-	mux.once.Do(func() {
+	mux.closeOnce.Do(func() {
 		// 未开启内置协议
 		if !mux.isInline {
 			return
