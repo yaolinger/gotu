@@ -87,6 +87,12 @@ func (svr *TCPServer) accept(ctx context.Context) {
 }
 
 func (svr *TCPServer) Close(ctx context.Context) {
+	svr.mu.Lock()
+	for sock, _ := range svr.sockets {
+		sock.Close(ctx)
+	}
+	svr.mu.Unlock()
+
 	close(svr.closeCh)
 	svr.listener.Close()
 	svr.wg.Wait()

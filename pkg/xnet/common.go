@@ -26,6 +26,8 @@ const (
 	// 所罗门编码: 15个数据包接收到任意10个数据包都可以恢复全部源数据包
 	kcpFecDataShards   = 10 // fec源数据包数量
 	kcpFecParityShards = 5  // fec生成数据包数量
+
+	maxMessageSize = 1024 * 2 // Websocket请求包大小上限
 )
 
 // 消息处理

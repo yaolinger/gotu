@@ -41,10 +41,10 @@ func NewTCPClient(ctx context.Context, arg TCPCliArgs) (*TCPClient, error) {
 	return &TCPClient{sock: sock, bufMgr: bufMgr}, nil
 }
 
-func (sock *TCPClient) Close(ctx context.Context) {
-	sock.sock.Close(ctx)
+func (cli *TCPClient) Close(ctx context.Context) {
+	cli.sock.Close(ctx)
 }
 
-func (sock *TCPClient) SendMsg(ctx context.Context, msg []byte) error {
-	return sock.sock.SendMsg(ctx, msg)
+func (cli *TCPClient) SendMsg(ctx context.Context, msg []byte) error {
+	return cli.sock.SendMsg(ctx, msg)
 }

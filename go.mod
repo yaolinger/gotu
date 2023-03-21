@@ -3,6 +3,8 @@ module gonet
 go 1.18
 
 require (
+	github.com/gorilla/websocket v1.5.0
+	github.com/pkg/errors v0.9.1
 	github.com/xtaci/kcp-go v5.4.20+incompatible
 	go.elastic.co/ecszap v1.0.1
 	go.uber.org/zap v1.24.0
@@ -12,7 +14,6 @@ require (
 	github.com/klauspost/cpuid/v2 v2.1.1 // indirect
 	github.com/klauspost/reedsolomon v1.11.7 // indirect
 	github.com/magefile/mage v1.9.0 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/templexxx/cpufeat v0.0.0-20180724012125-cef66df7f161 // indirect
 	github.com/templexxx/xor v0.0.0-20191217153810-f85b25db303b // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
