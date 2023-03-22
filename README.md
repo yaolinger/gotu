@@ -1,4 +1,4 @@
-# gonet
+# gotu
 
 * go version 1.18
 
