@@ -59,11 +59,11 @@ func (sock *UDPSocket) readLoop(ctx context.Context) {
 
 	defer sock.wg.Done(ctx)
 	for {
-		// 获取buffer, 读取buffer
 		bytes := make([]byte, readBufferSize)
+
+		// TODO 错误分析, 是否出错即关闭
 		n, addr, err := sock.conn.ReadFromUDP(bytes)
 		if err != nil {
-			// TODO 错误分析, 是否出错即关闭
 			if !errors.Is(err, net.ErrClosed) {
 				readErr = err
 			}
@@ -74,7 +74,12 @@ func (sock *UDPSocket) readLoop(ctx context.Context) {
 }
 
 func (sock *UDPSocket) writeLoop(ctx context.Context) {
+	var writeErr error
 	defer func() {
+		if writeErr != nil {
+			xlog.Get(ctx).Warn("Write loop exit with error", zap.Any("err", writeErr))
+		}
+
 		_ = sock.conn.Close()
 	}()
 
@@ -102,15 +107,18 @@ loop:
 			break
 		}
 
+		// TODO 错误分析, 是否出错即关闭
 		if sock.isServer {
 			_, err := sock.conn.WriteToUDP(datagram.msg, datagram.addr)
 			if err != nil {
-				xlog.Get(ctx).Warn("UDP write error", zap.Any("err", err))
+				writeErr = err
+				break
 			}
 		} else {
 			_, err := sock.conn.Write(datagram.msg)
 			if err != nil {
-				xlog.Get(ctx).Warn("UDP write error", zap.Any("err", err))
+				writeErr = err
+				break
 			}
 		}
 	}
