@@ -2,11 +2,14 @@ package xnet
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"time"
 )
 
 const (
 	tcpNetwork     = "tcp"
+	udpNetwork     = "udp"
 	readBufferSize = 1024
 
 	writeTimeout = 10 * time.Second // 写超时时间
@@ -28,6 +31,9 @@ const (
 	kcpFecParityShards = 5  // fec生成数据包数量
 
 	maxMessageSize = 1024 * 2 // Websocket请求包大小上限
+
+	udpSessionTimeout = 10   // udp 超时
+	udpMsgChanLimit   = 1024 // msg channel 带线啊哦
 )
 
 // 消息处理
@@ -41,4 +47,15 @@ type OnDisconnect func(ctx context.Context, state interface{})
 
 type Socket interface {
 	SendMsg(ctx context.Context, msg []byte) error
+}
+
+// udp 消息处理
+type udpOnMsg func(context.Context, []byte, *net.UDPAddr)
+
+// udp 发送消息
+type udpSendMsg func(ctx context.Context, datagram *udpDatagram) error
+
+// 地址转换
+func addrToString(addr *net.UDPAddr) string {
+	return fmt.Sprintf("%s:%v", addr.IP.String(), addr.Port)
 }
