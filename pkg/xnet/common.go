@@ -32,8 +32,9 @@ const (
 
 	maxMessageSize = 1024 * 2 // Websocket请求包大小上限
 
-	udpSessionTimeout = 10   // udp 超时
-	udpMsgChanLimit   = 1024 // msg channel 带线啊哦
+	udpCheckDuration  = 3 * time.Second // 检查时钟
+	udpSessionTimeout = 10              // udp超时(s)
+	udpMsgChanLimit   = 1024            // msg channel 带线啊哦
 )
 
 // 消息处理

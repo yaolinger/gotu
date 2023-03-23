@@ -10,11 +10,11 @@ import (
 // 通过waitGroup控制协程
 // defer wg.Done(), 不可在套一层func, recover不可跳过多层defer函数
 type WaitGroup struct {
-	sync.WaitGroup
+	w sync.WaitGroup
 }
 
 func (wg *WaitGroup) Add(n int) {
-	wg.WaitGroup.Add(n)
+	wg.w.Add(n)
 }
 
 func (wg *WaitGroup) Done(ctx context.Context) {
@@ -22,11 +22,11 @@ func (wg *WaitGroup) Done(ctx context.Context) {
 		xlog.Get(ctx).Sugar().Errorf("Goroutine panic %v stack %v", r, string(debug.Stack()))
 		panic(r)
 	}
-	wg.WaitGroup.Done()
+	wg.w.Done()
 }
 
 func (wg *WaitGroup) Wait() {
-	wg.WaitGroup.Wait()
+	wg.w.Wait()
 }
 
 // defer Recover(), 不可在套一层func, recover不可跳过多层defer函数

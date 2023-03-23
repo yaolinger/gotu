@@ -84,6 +84,7 @@ func TestUDP(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+
 	wg.Wait()
 	cli.Close(ctx)
 }

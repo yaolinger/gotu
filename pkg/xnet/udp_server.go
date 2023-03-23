@@ -60,7 +60,7 @@ func NewUDPServer(ctx context.Context, arg UDPSvrArgs) (*UDPServer, error) {
 func (svr *UDPServer) checkLoop(ctx context.Context) {
 	defer svr.wg.Done(ctx)
 
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(udpCheckDuration)
 	defer ticker.Stop()
 
 loop:

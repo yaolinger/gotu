@@ -71,7 +71,7 @@ func (svr *TCPServer) accept(ctx context.Context) {
 		}
 
 		if err != nil {
-			xlog.Get(ctx).Warn("Accept tcp failed.")
+			xlog.Get(ctx).Warn("Accept tcp failed.", zap.Any("err", err))
 			continue
 		}
 		s := newTCPSocket(ctx, TCPSocketArgs{
@@ -94,7 +94,7 @@ func (svr *TCPServer) Close(ctx context.Context) {
 	svr.mu.Unlock()
 
 	close(svr.closeCh)
-	svr.listener.Close()
+	_ = svr.listener.Close()
 	svr.wg.Wait()
 
 	xlog.Get(ctx).Info("TCP server stop.")
