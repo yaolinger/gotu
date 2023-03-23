@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"gonet/pkg/xnet"
+	"gotu/pkg/xnet"
 )
 
 var HeaderSizeof = binary.Size(Header{})

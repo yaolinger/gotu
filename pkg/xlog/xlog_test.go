@@ -2,7 +2,7 @@ package xlog_test
 
 import (
 	"context"
-	"gonet/pkg/xlog"
+	"gotu/pkg/xlog"
 	"testing"
 
 	"go.uber.org/zap"
@@ -12,7 +12,7 @@ func TestXLOG(t *testing.T) {
 
 	ctx := context.Background()
 
-	ctx = xlog.NewContext(ctx, zap.String("gonet", "golang-net"))
+	ctx = xlog.NewContext(ctx, zap.String("gotu", "golang-net"))
 	xlog.Get(ctx).Debug("日志测试")
 	ctx = xlog.NewContext(ctx, zap.String("author", "rabbit-tank"))
 	xlog.Get(ctx).Info("日志测试")

@@ -2,8 +2,8 @@ package xcommon_test
 
 import (
 	"context"
-	"gonet/pkg/xcommon"
-	"gonet/pkg/xlog"
+	"gotu/pkg/xcommon"
+	"gotu/pkg/xlog"
 	"reflect"
 	"testing"
 	"time"

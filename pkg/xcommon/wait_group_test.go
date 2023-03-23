@@ -2,7 +2,7 @@ package xcommon_test
 
 import (
 	"context"
-	"gonet/pkg/xcommon"
+	"gotu/pkg/xcommon"
 	"testing"
 )
 

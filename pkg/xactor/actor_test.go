@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"gonet/pkg/xactor"
-	"gonet/pkg/xlog"
+	"gotu/pkg/xactor"
+	"gotu/pkg/xlog"
 
 	"go.uber.org/zap"
 )

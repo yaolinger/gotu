@@ -2,7 +2,7 @@ package xcommon
 
 import (
 	"context"
-	"gonet/pkg/xlog"
+	"gotu/pkg/xlog"
 	"runtime/debug"
 	"sync"
 )

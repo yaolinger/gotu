@@ -3,8 +3,8 @@ package xnet
 import (
 	"context"
 	"fmt"
-	"gonet/pkg/xcommon"
-	"gonet/pkg/xlog"
+	"gotu/pkg/xcommon"
+	"gotu/pkg/xlog"
 	"io"
 	"net"
 	"sync/atomic"

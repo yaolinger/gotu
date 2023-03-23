@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"gonet/pkg/xlog"
+	"gotu/pkg/xlog"
 
 	"github.com/xtaci/kcp-go"
 	"go.uber.org/zap"

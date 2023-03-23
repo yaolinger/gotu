@@ -2,9 +2,9 @@ package xnet_test
 
 import (
 	"context"
-	"gonet/pkg/xlog"
-	"gonet/pkg/xmsg"
-	"gonet/pkg/xnet"
+	"gotu/pkg/xlog"
+	"gotu/pkg/xmsg"
+	"gotu/pkg/xnet"
 	"sync"
 	"testing"
 	"time"

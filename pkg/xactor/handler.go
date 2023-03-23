@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"time"
 
-	"gonet/pkg/xlog"
+	"gotu/pkg/xlog"
 )
 
 type (

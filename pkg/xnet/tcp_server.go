@@ -3,7 +3,7 @@ package xnet
 import (
 	"context"
 	"fmt"
-	"gonet/pkg/xlog"
+	"gotu/pkg/xlog"
 	"net"
 	"sync"
 
@@ -88,7 +88,7 @@ func (svr *TCPServer) accept(ctx context.Context) {
 
 func (svr *TCPServer) Close(ctx context.Context) {
 	svr.mu.Lock()
-	for sock, _ := range svr.sockets {
+	for sock := range svr.sockets {
 		sock.Close(ctx)
 	}
 	svr.mu.Unlock()
