@@ -14,7 +14,7 @@
   * xlatency：延迟模拟模块
 * script：脚本
   * build_all.sh：编译
-* cmd：执行文件
+* cmd：逻辑代码
   * udp_cli：测试udp client
   * udp_svr：测试udp server
   * udp_tun：udp 流量转发工具，支持模拟延迟，丢包
