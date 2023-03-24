@@ -6,7 +6,7 @@ import (
 )
 
 type State struct {
-	latency *xlatency.LatencyMock
+	latency *xlatency.LatencyActor
 	cli     *xnet.UDPClient
 	svrSock xnet.Socket
 }

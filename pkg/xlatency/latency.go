@@ -2,79 +2,176 @@ package xlatency
 
 import (
 	"context"
+	"fmt"
+	"gotu/pkg/xactor"
 	"gotu/pkg/xlog"
 	"math/rand"
-	"sync"
 	"time"
+
+	"go.uber.org/zap"
 )
 
+type latencyMsg struct {
+	isSvr bool
+	at    int64
+	msg   []byte
+}
+
 type LatencyMockArgs struct {
-	Loss uint32 // 丢失率 0~100
+	Name    string
+	Mode    bool
+	Loss    uint32 // 丢失率 0~100
+	Latency uint32 // 延迟ms
 }
 
 // 延迟模拟模块 => 针对于udp网络
-type LatencyMock struct {
-	loss uint32
+type LatencyActor struct {
+	name string
+	mode bool
 
-	mu        sync.Mutex
+	loss    uint32
+	latency uint32
+	msgs    []*latencyMsg
+
+	lost     uint32
+	packets  uint32
+	allDelay int64
+
 	sendToCli func(context.Context, []byte)
 	sendToSvr func(context.Context, []byte)
 }
 
-func NewLatencyMock(ctx context.Context, arg LatencyMockArgs) *LatencyMock {
-	l := &LatencyMock{
-		loss: arg.Loss,
+func NewLatencyActor(ctx context.Context, arg LatencyMockArgs) (*LatencyActor, error) {
+	if arg.Latency == 0 {
+		return nil, fmt.Errorf("latency[%v] must > 0", arg.Latency)
 	}
-	return l
+	l := &LatencyActor{
+		name:     arg.Name,
+		mode:     arg.Mode,
+		loss:     arg.Loss,
+		latency:  arg.Latency,
+		msgs:     make([]*latencyMsg, 0),
+		lost:     0,
+		packets:  0,
+		allDelay: 0,
+	}
+	if err := xactor.NewActorGroutine(ctx, l); err != nil {
+		return nil, err
+	}
+	return l, nil
 }
 
-func (l *LatencyMock) isLoss() bool {
+func (l *LatencyActor) InitArg() xactor.ActorHandlerArgs {
+	return xactor.ActorHandlerArgs{
+		Syncs:          []xactor.SyncHandlerArgs{xactor.SyncHandlerWrap(l.RegisterSendToCli), xactor.SyncHandlerWrap(l.RegisterSendToSvr)},
+		Asyncs:         []xactor.AsyncHandlerArgs{xactor.AsyncHandlerWrap(l.RecvFromCli), xactor.AsyncHandlerWrap(l.RecvFromSvr)},
+		Tickers:        []xactor.TickHanler{l.tickLoop},
+		TickerDuration: 5 * time.Millisecond,
+	}
+}
+
+func (l *LatencyActor) Name() string {
+	return l.name
+}
+
+func (l *LatencyActor) Close(ctx context.Context) {
+
+	var averageDelay uint64
+	transfer := l.packets - l.lost
+	if transfer != 0 {
+		averageDelay = uint64(l.allDelay) / uint64(transfer)
+	}
+
+	record := fmt.Sprintf("All packets[%v] lost packets[%v] allDelay[%vms] averageDelay[%vms]", l.packets, l.lost, l.allDelay, averageDelay)
+
+	xlog.Get(ctx).Debug("Latency closed", zap.Any("name", l.name), zap.Any("proxy-record", record))
+}
+
+func (l *LatencyActor) isLoss() bool {
+	l.packets++
 	rand.Seed(time.Now().UnixMilli())
-	return rand.Int31n(100) < int32(l.loss)
+	if rand.Int31n(100) < int32(l.loss) {
+		l.lost++
+		return true
+	}
+	return false
 }
 
-func (l *LatencyMock) SetSendToSvr(sendToSvr func(context.Context, []byte)) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.sendToSvr = sendToSvr
+func (l *LatencyActor) randLatency() int64 {
+	rl := int64(rand.Int31n(int32(l.latency)))
+	l.allDelay += rl
+	return rl
 }
 
-func (l *LatencyMock) SetSendToCli(sendToCli func(context.Context, []byte)) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.sendToCli = sendToCli
+func (l *LatencyActor) extend(ctx context.Context, isSvr bool, msg []byte) {
+	l.msgs = append(l.msgs, &latencyMsg{isSvr: isSvr, msg: msg, at: time.Now().UnixMilli() + l.randLatency()})
 }
 
-func (l *LatencyMock) RecvFromCli(ctx context.Context, mode bool, msg []byte) {
+type RegisterSendToSvrReq struct {
+	SendToSvr func(context.Context, []byte)
+}
+
+type RegisterSendToSvrResp struct {
+}
+
+// 同步注册 sendToSvr
+func (l *LatencyActor) RegisterSendToSvr(ctx context.Context, req *RegisterSendToSvrReq) (*RegisterSendToSvrResp, error) {
+	l.sendToSvr = req.SendToSvr
+	return &RegisterSendToSvrResp{}, nil
+}
+
+type RegisterSendToCliReq struct {
+	SendToCli func(context.Context, []byte)
+}
+
+type RegisterSendToCliResp struct {
+}
+
+// 同步注册 sendToCli
+func (l *LatencyActor) RegisterSendToCli(ctx context.Context, req *RegisterSendToCliReq) (*RegisterSendToCliResp, error) {
+	l.sendToCli = req.SendToCli
+	return &RegisterSendToCliResp{}, nil
+}
+
+type RecvFromCliReq struct {
+	Msg []byte
+}
+
+// 异步接收client数据
+func (l *LatencyActor) RecvFromCli(ctx context.Context, req *RecvFromCliReq) {
 	if l.isLoss() {
-		xlog.Get(ctx).Debug("packet loss")
 		return
 	}
 
-	msg = l.extend(ctx, mode, msg)
-
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.sendToSvr != nil {
-		l.sendToSvr(ctx, msg)
-	}
+	l.extend(ctx, true, req.Msg)
 }
 
-func (l *LatencyMock) RecvFromSvr(ctx context.Context, mode bool, msg []byte) {
+type RecvFromSvrReq struct {
+	Msg []byte
+}
+
+// 异步接收server数据
+func (l *LatencyActor) RecvFromSvr(ctx context.Context, req *RecvFromSvrReq) {
 	if l.isLoss() {
-		xlog.Get(ctx).Debug("packet loss")
 		return
 	}
 
-	msg = l.extend(ctx, mode, msg)
-
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.sendToCli != nil {
-		l.sendToCli(ctx, msg)
-	}
+	l.extend(ctx, false, req.Msg)
 }
 
-func (l *LatencyMock) extend(ctx context.Context, mode bool, msg []byte) []byte {
-	return msg
+func (l *LatencyActor) tickLoop(ctx context.Context) {
+	now := time.Now().UnixMilli()
+	msgs := make([]*latencyMsg, 0)
+	for _, m := range l.msgs {
+		if m.at > now {
+			msgs = append(msgs, m)
+		} else {
+			if m.isSvr && l.sendToSvr != nil {
+				l.sendToSvr(ctx, m.msg)
+			} else if !m.isSvr && l.sendToCli != nil {
+				l.sendToCli(ctx, m.msg)
+			}
+		}
+	}
+	l.msgs = msgs
 }

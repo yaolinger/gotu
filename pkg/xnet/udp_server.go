@@ -85,6 +85,7 @@ loop:
 		svr.mu.Unlock()
 
 		for _, session := range expires {
+			session.Close(ctx)
 			svr.delSession(ctx, session)
 			xlog.Get(ctx).Warn("UDP session timeout", zap.Any("id", addrToString(session.remoteAddr())))
 		}
