@@ -166,3 +166,7 @@ func (sock *Websocket) SendMsg(ctx context.Context, msg []byte) error {
 		return fmt.Errorf("msg overflow")
 	}
 }
+
+func (sock *Websocket) RemoteAddr() net.Addr {
+	return sock.conn.RemoteAddr()
+}

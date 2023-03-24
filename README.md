@@ -10,4 +10,11 @@
     * 网络层读写分离，未强制控制读写数据时序
   * xmsg：数据包分割
   * xactor：actor模式
-  * xcommon: 通用模块
+  * xcommon：通用模块
+  * xlatency：延迟模拟模块
+* script：脚本
+  * build_all.sh：编译
+* cmd：执行文件
+  * udp_cli：测试udp client
+  * udp_svr：测试udp server
+  * udp_tun：udp 流量转发工具，支持模拟延迟，丢包

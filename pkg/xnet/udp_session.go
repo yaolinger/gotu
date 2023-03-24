@@ -68,7 +68,7 @@ func (session *UDPSession) handlerLoop(ctx context.Context) {
 
 	state := session.onConnect(ctx, session)
 	defer func() {
-		session.onDisconnect(ctx, session)
+		session.onDisconnect(ctx, state)
 	}()
 
 loop:
@@ -100,7 +100,11 @@ func (session *UDPSession) recvMsg(msg []byte, now int64) error {
 	}
 }
 
-func (session *UDPSession) remoteDddr() *net.UDPAddr {
+func (session *UDPSession) remoteAddr() *net.UDPAddr {
+	return session.addr
+}
+
+func (session *UDPSession) RemoteAddr() net.Addr {
 	return session.addr
 }
 

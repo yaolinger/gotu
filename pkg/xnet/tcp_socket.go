@@ -196,3 +196,7 @@ func (sock *TCPSocket) Close(ctx context.Context) {
 	sock.conn.CloseRead()
 	sock.wg.Wait()
 }
+
+func (sock *TCPSocket) RemoteAddr() net.Addr {
+	return sock.conn.RemoteAddr()
+}

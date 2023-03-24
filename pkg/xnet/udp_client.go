@@ -13,6 +13,7 @@ import (
 
 type UDPCliArgs struct {
 	Addr         string
+	Timeout      int
 	OnMsg        OnHandlerOnce
 	OnConnect    OnConnect
 	OnDisconnect OnDisconnect
@@ -53,11 +54,13 @@ func NewUDPClient(ctx context.Context, arg UDPCliArgs) (*UDPClient, error) {
 	cli.session = session
 
 	cli.wg.Add(1)
-	go cli.checkLoop(ctx)
+	go cli.checkLoop(ctx, arg.Timeout)
+
+	xlog.Get(ctx).Info("UDP client start success.", zap.Any("addr", arg.Addr))
 	return cli, nil
 }
 
-func (cli *UDPClient) checkLoop(ctx context.Context) {
+func (cli *UDPClient) checkLoop(ctx context.Context, timeout int) {
 	defer cli.wg.Done(ctx)
 
 	ticker := time.NewTicker(udpCheckDuration)
@@ -71,9 +74,9 @@ loop:
 			break loop
 		}
 
-		if cli.session.getActiveAt() < time.Now().Unix()-udpSessionTimeout {
+		if cli.session.getActiveAt() < time.Now().Unix()-int64(timeout) {
 			cli.forceClose(ctx)
-			xlog.Get(ctx).Warn("UDP session timeout")
+			xlog.Get(ctx).Warn("UDP session timeout", zap.Any("id", addrToString(cli.session.remoteAddr())))
 			break
 		}
 	}
@@ -86,7 +89,7 @@ func (cli *UDPClient) udpOnMsg(ctx context.Context, msg []byte, addr *net.UDPAdd
 }
 
 func (cli *UDPClient) SendMsg(ctx context.Context, msg []byte) error {
-	return cli.sock.sendMsg(ctx, &udpDatagram{msg: msg, addr: cli.session.remoteDddr()})
+	return cli.sock.sendMsg(ctx, &udpDatagram{msg: msg, addr: cli.session.remoteAddr()})
 }
 
 func (cli *UDPClient) Close(ctx context.Context) {

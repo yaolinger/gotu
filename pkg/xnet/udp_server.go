@@ -13,6 +13,7 @@ import (
 
 type UDPSvrArgs struct {
 	Addr         string
+	Timeout      int
 	OnMsg        OnHandlerOnce
 	OnConnect    OnConnect
 	OnDisconnect OnDisconnect
@@ -53,11 +54,13 @@ func NewUDPServer(ctx context.Context, arg UDPSvrArgs) (*UDPServer, error) {
 	svr.sock = sock
 
 	svr.wg.Add(1)
-	go svr.checkLoop(ctx)
+	go svr.checkLoop(ctx, arg.Timeout)
+
+	xlog.Get(ctx).Info("UDP server start success.", zap.Any("addr", arg.Addr))
 	return svr, nil
 }
 
-func (svr *UDPServer) checkLoop(ctx context.Context) {
+func (svr *UDPServer) checkLoop(ctx context.Context, timeout int) {
 	defer svr.wg.Done(ctx)
 
 	ticker := time.NewTicker(udpCheckDuration)
@@ -70,7 +73,7 @@ loop:
 		case <-svr.closeCh:
 			break loop
 		}
-		sessionTimeout := time.Now().Unix() - udpSessionTimeout
+		sessionTimeout := time.Now().Unix() - int64(timeout)
 		expires := make([]*UDPSession, 0)
 
 		svr.mu.Lock()
@@ -83,7 +86,7 @@ loop:
 
 		for _, session := range expires {
 			svr.delSession(ctx, session)
-			xlog.Get(ctx).Warn("UDP session timeout", zap.Any("id", addrToString(session.remoteDddr())))
+			xlog.Get(ctx).Warn("UDP session timeout", zap.Any("id", addrToString(session.remoteAddr())))
 		}
 	}
 }
@@ -111,14 +114,14 @@ func (svr *UDPServer) udpOnMsg(ctx context.Context, msg []byte, addr *net.UDPAdd
 }
 
 func (svr *UDPServer) addSession(ctx context.Context, session *UDPSession) {
-	id := addrToString(session.remoteDddr())
+	id := addrToString(session.remoteAddr())
 	svr.mu.Lock()
 	defer svr.mu.Unlock()
 	svr.sessions[id] = session
 }
 
 func (svr *UDPServer) delSession(ctx context.Context, session *UDPSession) {
-	id := addrToString(session.remoteDddr())
+	id := addrToString(session.remoteAddr())
 	svr.mu.Lock()
 	defer svr.mu.Unlock()
 	delete(svr.sessions, id)
