@@ -11,19 +11,46 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	modeNormal = 0
+	modeClient = 1
+	modeServer = 2
+)
+
+func modeString(mode int) string {
+	if mode == modeNormal {
+		return "normal"
+	} else if mode == modeClient {
+		return "client"
+	} else if mode == modeServer {
+		return "server"
+	} else {
+		return fmt.Sprintf("mode[%v] invalid", mode)
+	}
+}
+
 type Registry struct {
 	proxyAddr string
-	mode      bool
+	mode      int
+	header    bool
 }
 
 var reg = &Registry{}
 
-func InitRegistry(addr string, mode bool) *Registry {
+func InitRegistry(ctx context.Context, addr string, mode int, header bool) (*Registry, error) {
+	if mode != modeNormal && mode != modeClient && mode != modeServer {
+		return nil, fmt.Errorf("mode[%v] invalid[0|1|2]", mode)
+	}
+
+	xlog.Get(ctx).Sugar().Debugf("Mode [%v] proxy[%v] header[%v] start success.", modeString(mode), addr, header)
+
 	reg.proxyAddr = addr
 	reg.mode = mode
-	return reg
+	reg.header = header
+	return reg, nil
 }
 
+// TODO 存在一些吞错误的行为, 考虑重新设计流程
 func (r *Registry) OnConnect(ctx context.Context, sock xnet.Socket) interface{} {
 	s := &State{
 		svrSock: sock,
@@ -47,6 +74,19 @@ func (r *Registry) OnConnect(ctx context.Context, sock xnet.Socket) interface{} 
 			xlog.Get(ctx).Sugar().Debugf("Proxy disconnect %v => %v", s.svrSock.RemoteAddr(), sock.RemoteAddr())
 		},
 		OnMsg: func(ctx context.Context, state interface{}, msg []byte) (int, error) {
+			// client/server proxy add header
+			var err error
+			if r.mode == modeClient && r.header {
+				msg, err = unpack(ctx, msg)
+				if err != nil {
+					return 0, err
+				}
+			} else if r.mode == modeServer && r.header {
+				msg, err = pack(ctx, msg)
+				if err != nil {
+					return 0, err
+				}
+			}
 			xactor.AsyncRequest(ctx, s.latency.Name(), &xlatency.RecvFromCliReq{
 				Msg: msg,
 			})
@@ -94,6 +134,21 @@ func (r *Registry) OnDisconnect(ctx context.Context, state interface{}) {
 
 func (r *Registry) OnMsg(ctx context.Context, state interface{}, msg []byte) (int, error) {
 	s := state.(*State)
+
+	// client/server proxy add header
+	var err error
+	if r.mode == modeClient && r.header {
+		msg, err = pack(ctx, msg)
+		if err != nil {
+			return 0, err
+		}
+	} else if r.mode == modeServer && r.header {
+		msg, err = unpack(ctx, msg)
+		if err != nil {
+			return 0, err
+		}
+	}
+
 	xactor.AsyncRequest(ctx, s.latency.Name(), &xlatency.RecvFromSvrReq{Msg: msg})
 	return 0, nil
 }

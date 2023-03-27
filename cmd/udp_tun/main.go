@@ -11,8 +11,8 @@ import (
 
 var listenAddr = flag.String("listen", ":6000", "udp listen addr")
 var proxyAddr = flag.String("proxy", ":5000", "udp proxy addr")
-
-var mode = flag.Bool("mode", true, "proxy mode[true:svr|false:cli]")
+var mode = flag.Int("mode", 0, "proxy mode (0:normal|1:client|2:server)")
+var header = flag.Bool("header", true, "mode client/server add header")
 
 func main() {
 	flag.Parse()
@@ -27,7 +27,10 @@ func main() {
 		panic(fmt.Sprintf("connect[%v] invalid", *proxyAddr))
 	}
 
-	reg := handlers.InitRegistry(*proxyAddr, *mode)
+	reg, err := handlers.InitRegistry(ctx, *proxyAddr, *mode, *header)
+	if err != nil {
+		panic(err)
+	}
 
 	svr, err := xnet.NewUDPServer(ctx, xnet.UDPSvrArgs{
 		Addr:         *listenAddr,
@@ -35,8 +38,7 @@ func main() {
 		OnConnect:    reg.OnConnect,
 		OnDisconnect: reg.OnDisconnect,
 		OnMsg:        reg.OnMsg,
-	},
-	)
+	})
 	if err != nil {
 		panic(err)
 	}

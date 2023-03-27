@@ -19,7 +19,7 @@ type latencyMsg struct {
 
 type LatencyMockArgs struct {
 	Name    string
-	Mode    bool
+	Mode    int
 	Loss    uint32 // 丢失率 0~100
 	Latency uint32 // 延迟ms
 }
@@ -27,7 +27,7 @@ type LatencyMockArgs struct {
 // 延迟模拟模块 => 针对于udp网络
 type LatencyActor struct {
 	name string
-	mode bool
+	mode int
 
 	loss    uint32
 	latency uint32
