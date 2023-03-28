@@ -2,8 +2,7 @@ package handlers
 
 import (
 	"context"
-	"fmt"
-	"gotu/pkg/xlog"
+	"gotu/pkg/xcommon"
 	"sync"
 )
 
@@ -98,16 +97,17 @@ func (sts *singleTunSnmp) add(s *singleTunSnmpClone) {
 func (sts *singleTunSnmp) close(ctx context.Context) {
 	_tunSnmp.total.add(sts.clone())
 
-	sts.display(ctx)
-	_tunSnmp.total.display(ctx)
+	xcommon.PrintTable(ctx, []string{"udp", "in-bytes(B)", "in-packets", "average-proxy(cs)-delay(ms)", "out-bytes(B)", "out-packets"}, [][]string{sts.values(ctx), _tunSnmp.total.values(ctx)})
 
 	_tunSnmp.mu.Lock()
 	delete(_tunSnmp.snmps, sts.id)
 	_tunSnmp.mu.Unlock()
 }
 
-func (sts *singleTunSnmp) display(ctx context.Context) {
-	str := ""
+func (sts *singleTunSnmp) values(ctx context.Context) []string {
+	strs := make([]string, 0)
+	strs = append(strs, sts.id)
+
 	var allDelay int64
 	var average int64
 
@@ -118,12 +118,12 @@ func (sts *singleTunSnmp) display(ctx context.Context) {
 	if sts.inPackets != 0 {
 		average = allDelay / int64(sts.inPackets)
 	}
-	str = fmt.Sprintf("UDP inBytes[%vB] inPackets[%v] averageDelay[%vms]", sts.inBytes, sts.inPackets, average)
+	strs = append(strs, xcommon.ToString(sts.inBytes), xcommon.ToString(sts.inPackets), xcommon.ToString(average))
 	sts.inMu.Unlock()
 
 	sts.outMu.Lock()
-	str = fmt.Sprintf("%s outBytets[%vB] outPackets[%v] by[%v]", str, sts.outBytes, sts.outPackets, sts.id)
+	strs = append(strs, xcommon.ToString(sts.outBytes), xcommon.ToString(sts.outPackets))
 	sts.outMu.Unlock()
 
-	xlog.Get(ctx).Info(str)
+	return strs
 }

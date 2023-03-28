@@ -2,9 +2,8 @@ package xlatency
 
 import (
 	"context"
-	"fmt"
 	"gotu/pkg/xactor"
-	"gotu/pkg/xlog"
+	"gotu/pkg/xcommon"
 	"math/rand"
 	"time"
 )
@@ -61,7 +60,7 @@ func (l *LatencyActor) InitArg() xactor.ActorHandlerArgs {
 		Syncs:          []xactor.SyncHandlerArgs{xactor.SyncHandlerWrap(l.RegisterSendToCli), xactor.SyncHandlerWrap(l.RegisterSendToSvr)},
 		Asyncs:         []xactor.AsyncHandlerArgs{xactor.AsyncHandlerWrap(l.RecvFromCli), xactor.AsyncHandlerWrap(l.RecvFromSvr)},
 		Tickers:        []xactor.TickHanler{l.tickLoop},
-		TickerDuration: 5 * time.Millisecond,
+		TickerDuration: 1 * time.Millisecond,
 	}
 }
 
@@ -77,9 +76,9 @@ func (l *LatencyActor) Close(ctx context.Context) {
 		averageDelay = uint64(l.allDelay) / uint64(transfer)
 	}
 
-	record := fmt.Sprintf("Latency[%v] all packets[%v] lost packets[%v] allDelay[%vms] averageDelay[%vms]", l.name, l.packets, l.lost, l.allDelay, averageDelay)
-
-	xlog.Get(ctx).Info(record)
+	// 输出统计数据
+	xcommon.PrintTable(ctx, []string{"latency-name", "all-packets", "lost-packets", "all-delay(ms)", "average-delay(ms)"}, [][]string{{l.name,
+		xcommon.ToString(l.packets), xcommon.ToString(l.lost), xcommon.ToString(l.allDelay), xcommon.ToString(averageDelay)}})
 }
 
 func (l *LatencyActor) isLoss() bool {

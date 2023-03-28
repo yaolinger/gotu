@@ -7,7 +7,6 @@ import (
 	"gotu/pkg/xlatency"
 	"gotu/pkg/xlog"
 	"gotu/pkg/xnet"
-	"time"
 
 	"go.uber.org/zap"
 )
@@ -67,7 +66,7 @@ func InitRegistry(ctx context.Context, arg RegistryArgs) (*Registry, error) {
 func (r *Registry) OnConnect(ctx context.Context, sock xnet.Socket) interface{} {
 	s := &State{
 		svrSock: sock,
-		snmp:    getSingleTunSnmp(fmt.Sprintf("%v[%v]", sock.RemoteAddr(), time.Now().Format("2006-01-02 15:04:05"))),
+		snmp:    getSingleTunSnmp(fmt.Sprintf("%v", sock.RemoteAddr())),
 	}
 
 	if l, err := xlatency.NewLatencyActor(ctx, xlatency.LatencyMockArgs{Name: fmt.Sprintf("latencyActor-%v", sock.RemoteAddr()), Mode: r.mode, Loss: r.loss, Latency: r.latency}); err != nil {

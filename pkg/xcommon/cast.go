@@ -1,6 +1,7 @@
 package xcommon
 
 import (
+	"fmt"
 	"reflect"
 	"unsafe"
 )
@@ -24,4 +25,8 @@ func BytesToString(b []byte) string {
 	hdr.Data = (*reflect.SliceHeader)(unsafe.Pointer(&b)).Data
 	hdr.Len = len(b)
 	return s
+}
+
+func ToString(v interface{}) string {
+	return fmt.Sprintf("%v", v)
 }

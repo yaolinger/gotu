@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/gorilla/websocket v1.5.0
+	github.com/liushuochen/gotable v0.0.0-20221119160816-1113793e7092
 	github.com/pkg/errors v0.9.1
 	github.com/xtaci/kcp-go v5.4.20+incompatible
 	go.elastic.co/ecszap v1.0.1
