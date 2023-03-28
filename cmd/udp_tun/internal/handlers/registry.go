@@ -7,6 +7,7 @@ import (
 	"gotu/pkg/xlatency"
 	"gotu/pkg/xlog"
 	"gotu/pkg/xnet"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -29,24 +30,36 @@ func modeString(mode int) string {
 	}
 }
 
+type RegistryArgs struct {
+	Addr    string
+	Mode    int
+	Header  bool
+	Loss    uint32
+	Latency uint32
+}
+
 type Registry struct {
 	proxyAddr string
 	mode      int
 	header    bool
+	loss      uint32
+	latency   uint32
 }
 
 var reg = &Registry{}
 
-func InitRegistry(ctx context.Context, addr string, mode int, header bool) (*Registry, error) {
-	if mode != modeNormal && mode != modeClient && mode != modeServer {
-		return nil, fmt.Errorf("mode[%v] invalid[0|1|2]", mode)
+func InitRegistry(ctx context.Context, arg RegistryArgs) (*Registry, error) {
+	if arg.Mode != modeNormal && arg.Mode != modeClient && arg.Mode != modeServer {
+		return nil, fmt.Errorf("mode[%v] invalid[0|1|2]", arg.Mode)
 	}
 
-	xlog.Get(ctx).Sugar().Debugf("Mode [%v] proxy[%v] header[%v] start success.", modeString(mode), addr, header)
+	xlog.Get(ctx).Sugar().Debugf("Mode [%v] proxy[%v] header[%v] loss[%v] latency[%v] start success.", modeString(arg.Mode), arg.Addr, arg.Header, arg.Loss, arg.Latency)
 
-	reg.proxyAddr = addr
-	reg.mode = mode
-	reg.header = header
+	reg.proxyAddr = arg.Addr
+	reg.mode = arg.Mode
+	reg.header = arg.Header
+	reg.loss = arg.Loss
+	reg.latency = arg.Latency
 	return reg, nil
 }
 
@@ -54,9 +67,10 @@ func InitRegistry(ctx context.Context, addr string, mode int, header bool) (*Reg
 func (r *Registry) OnConnect(ctx context.Context, sock xnet.Socket) interface{} {
 	s := &State{
 		svrSock: sock,
+		snmp:    getSingleTunSnmp(fmt.Sprintf("%v[%v]", sock.RemoteAddr(), time.Now().Format("2006-01-02 15:04:05"))),
 	}
 
-	if l, err := xlatency.NewLatencyActor(ctx, xlatency.LatencyMockArgs{Name: fmt.Sprintf("latencyActor-%v", sock.RemoteAddr()), Mode: r.mode, Loss: 20, Latency: 50}); err != nil {
+	if l, err := xlatency.NewLatencyActor(ctx, xlatency.LatencyMockArgs{Name: fmt.Sprintf("latencyActor-%v", sock.RemoteAddr()), Mode: r.mode, Loss: r.loss, Latency: r.latency}); err != nil {
 		xlog.Get(ctx).Warn("New latency failed.", zap.Any("err", err))
 		return s
 	} else {
@@ -77,15 +91,18 @@ func (r *Registry) OnConnect(ctx context.Context, sock xnet.Socket) interface{} 
 			// client/server proxy add header
 			var err error
 			if r.mode == modeClient && r.header {
-				msg, err = unpack(ctx, msg)
+				var delay int64
+				delay, msg, err = unpack(ctx, msg)
 				if err != nil {
 					return 0, err
 				}
+				s.snmp.recv(len(msg), delay)
 			} else if r.mode == modeServer && r.header {
 				msg, err = pack(ctx, msg)
 				if err != nil {
 					return 0, err
 				}
+				s.snmp.send(len(msg))
 			}
 			xactor.AsyncRequest(ctx, s.latency.Name(), &xlatency.RecvFromCliReq{
 				Msg: msg,
@@ -124,6 +141,7 @@ func (r *Registry) OnConnect(ctx context.Context, sock xnet.Socket) interface{} 
 func (r *Registry) OnDisconnect(ctx context.Context, state interface{}) {
 	s := state.(*State)
 	s.cli.Close(ctx)
+	s.snmp.close(ctx)
 
 	if actor, err := xactor.GetActor(s.latency.Name()); err == nil {
 		actor.Close(ctx)
@@ -142,11 +160,14 @@ func (r *Registry) OnMsg(ctx context.Context, state interface{}, msg []byte) (in
 		if err != nil {
 			return 0, err
 		}
+		s.snmp.send(len(msg))
 	} else if r.mode == modeServer && r.header {
-		msg, err = unpack(ctx, msg)
+		var delay int64
+		delay, msg, err = unpack(ctx, msg)
 		if err != nil {
 			return 0, err
 		}
+		s.snmp.recv(len(msg), delay)
 	}
 
 	xactor.AsyncRequest(ctx, s.latency.Name(), &xlatency.RecvFromSvrReq{Msg: msg})

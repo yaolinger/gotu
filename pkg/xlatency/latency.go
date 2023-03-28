@@ -7,8 +7,6 @@ import (
 	"gotu/pkg/xlog"
 	"math/rand"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 type latencyMsg struct {
@@ -42,9 +40,6 @@ type LatencyActor struct {
 }
 
 func NewLatencyActor(ctx context.Context, arg LatencyMockArgs) (*LatencyActor, error) {
-	if arg.Latency == 0 {
-		return nil, fmt.Errorf("latency[%v] must > 0", arg.Latency)
-	}
 	l := &LatencyActor{
 		name:     arg.Name,
 		mode:     arg.Mode,
@@ -82,9 +77,9 @@ func (l *LatencyActor) Close(ctx context.Context) {
 		averageDelay = uint64(l.allDelay) / uint64(transfer)
 	}
 
-	record := fmt.Sprintf("All packets[%v] lost packets[%v] allDelay[%vms] averageDelay[%vms]", l.packets, l.lost, l.allDelay, averageDelay)
+	record := fmt.Sprintf("Latency[%v] all packets[%v] lost packets[%v] allDelay[%vms] averageDelay[%vms]", l.name, l.packets, l.lost, l.allDelay, averageDelay)
 
-	xlog.Get(ctx).Debug("Latency closed", zap.Any("name", l.name), zap.Any("proxy-record", record))
+	xlog.Get(ctx).Info(record)
 }
 
 func (l *LatencyActor) isLoss() bool {
@@ -98,9 +93,12 @@ func (l *LatencyActor) isLoss() bool {
 }
 
 func (l *LatencyActor) randLatency() int64 {
-	rl := int64(rand.Int31n(int32(l.latency)))
-	l.allDelay += rl
-	return rl
+	if l.latency > 0 {
+		rl := int64(rand.Int31n(int32(l.latency)))
+		l.allDelay += rl
+		return rl
+	}
+	return 0
 }
 
 func (l *LatencyActor) extend(ctx context.Context, isSvr bool, msg []byte) {

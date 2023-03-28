@@ -5,10 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"gotu/pkg/xlog"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 var headerSizeof = binary.Size(header{})
@@ -24,20 +21,18 @@ func pack(ctx context.Context, msg []byte) ([]byte, error) {
 		return nil, err
 	}
 	msg = append(ioWrite.Bytes(), msg...)
-	xlog.Get(ctx).Debug("Pack header", zap.Any("now", header.Now))
 	return msg, nil
 }
 
-func unpack(ctx context.Context, msg []byte) ([]byte, error) {
+func unpack(ctx context.Context, msg []byte) (int64, []byte, error) {
 	if len(msg) < headerSizeof {
-		return nil, fmt.Errorf("msg %v not enough %v", len(msg), headerSizeof)
+		return 0, nil, fmt.Errorf("msg %v not enough %v", len(msg), headerSizeof)
 	}
 	header := &header{}
 	ioReader := bytes.NewReader(msg[0:headerSizeof])
 	if err := binary.Read(ioReader, binary.LittleEndian, header); err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 	now := time.Now().UnixMilli()
-	xlog.Get(ctx).Debug("Unpack header", zap.Any("now", header.Now), zap.Any("delay", now-header.Now))
-	return msg[headerSizeof:], nil
+	return now - header.Now, msg[headerSizeof:], nil
 }

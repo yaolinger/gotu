@@ -9,4 +9,6 @@ type State struct {
 	latency *xlatency.LatencyActor
 	cli     *xnet.UDPClient
 	svrSock xnet.Socket
+
+	snmp *singleTunSnmp
 }
