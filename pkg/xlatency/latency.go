@@ -9,30 +9,40 @@ import (
 )
 
 type latencyMsg struct {
-	isSvr bool
+	inout bool // in 入站, out 出站
 	at    int64
 	msg   []byte
 }
 
 type LatencyMockArgs struct {
-	Name    string
-	Mode    int
-	Loss    uint32 // 丢失率 0~100
-	Latency uint32 // 延迟ms
+	Name       string
+	InLoss     uint32 // 入站丢失率 0~100
+	InLatency  uint32 // 入站延迟ms
+	OutLoss    uint32 // 入站
+	OutLatency uint32 // 入站
 }
 
 // 延迟模拟模块 => 针对于udp网络
 type LatencyActor struct {
-	name string
-	mode int
+	name       string
+	inLoss     uint32
+	inLatency  uint32
+	outLoss    uint32
+	outLatency uint32
 
-	loss    uint32
-	latency uint32
-	msgs    []*latencyMsg
+	msgs []*latencyMsg
 
-	lost     uint32
-	packets  uint32
-	allDelay int64
+	inBytes       uint32
+	inLostBytes   uint32
+	inLostPackets uint32
+	inPackets     uint32
+	inDelay       int64
+
+	outBytes       uint32
+	outLostBytes   uint32
+	outLostPackets uint32
+	outPackets     uint32
+	outDelay       int64
 
 	sendToCli func(context.Context, []byte)
 	sendToSvr func(context.Context, []byte)
@@ -40,14 +50,12 @@ type LatencyActor struct {
 
 func NewLatencyActor(ctx context.Context, arg LatencyMockArgs) (*LatencyActor, error) {
 	l := &LatencyActor{
-		name:     arg.Name,
-		mode:     arg.Mode,
-		loss:     arg.Loss,
-		latency:  arg.Latency,
-		msgs:     make([]*latencyMsg, 0),
-		lost:     0,
-		packets:  0,
-		allDelay: 0,
+		name:       arg.Name,
+		inLoss:     arg.InLoss,
+		inLatency:  arg.InLatency,
+		outLoss:    arg.OutLoss,
+		outLatency: arg.OutLatency,
+		msgs:       make([]*latencyMsg, 0),
 	}
 	if err := xactor.NewActorGroutine(ctx, l); err != nil {
 		return nil, err
@@ -70,38 +78,68 @@ func (l *LatencyActor) Name() string {
 
 func (l *LatencyActor) Close(ctx context.Context) {
 
-	var averageDelay uint64
-	transfer := l.packets - l.lost
-	if transfer != 0 {
-		averageDelay = uint64(l.allDelay) / uint64(transfer)
+	var inAverageDelay uint64
+	inTransfer := l.inPackets - l.inLostPackets
+	if inTransfer != 0 {
+		inAverageDelay = uint64(l.inDelay) / uint64(inTransfer)
+	}
+	var outAverageDelay uint64
+	outTransfer := l.outPackets - l.outLostPackets
+	if outTransfer != 0 {
+		outAverageDelay = uint64(l.outDelay) / uint64(outTransfer)
 	}
 
 	// 输出统计数据
-	xcommon.PrintTable(ctx, []string{"latency-name", "all-packets", "lost-packets", "all-delay(ms)", "average-delay(ms)"}, [][]string{{l.name,
-		xcommon.ToString(l.packets), xcommon.ToString(l.lost), xcommon.ToString(l.allDelay), xcommon.ToString(averageDelay)}})
+	xcommon.PrintTable(ctx, []string{"latency-name", "bytes(B)", "lost-bytes(B)", "packets", "lost-packets", "all-delay(ms)", "average-delay(ms)"},
+		[][]string{{l.name + "(in)", xcommon.ToString(l.inBytes), xcommon.ToString(l.inLostBytes), xcommon.ToString(l.inPackets), xcommon.ToString(l.inLostPackets), xcommon.ToString(l.inDelay), xcommon.ToString(inAverageDelay)},
+			{l.name + "(out)", xcommon.ToString(l.outBytes), xcommon.ToString(l.outLostBytes), xcommon.ToString(l.outPackets), xcommon.ToString(l.outLostPackets), xcommon.ToString(l.outDelay), xcommon.ToString(outAverageDelay)}})
 }
 
-func (l *LatencyActor) isLoss() bool {
-	l.packets++
-	rand.Seed(time.Now().UnixMilli())
-	if rand.Int31n(100) < int32(l.loss) {
-		l.lost++
-		return true
+func (l *LatencyActor) isLoss(inout bool, len int) bool {
+	if inout {
+		l.inPackets++
+		rand.Seed(time.Now().UnixMilli())
+		if rand.Int31n(100) < int32(l.inLoss) {
+			l.inLostPackets++
+			l.inLostBytes += uint32(len)
+			return true
+		}
+	} else {
+		l.outPackets++
+		rand.Seed(time.Now().UnixMilli())
+		if rand.Int31n(100) < int32(l.outLoss) {
+			l.outLostPackets++
+			l.outLostBytes += uint32(len)
+			return true
+		}
 	}
 	return false
 }
 
-func (l *LatencyActor) randLatency() int64 {
-	if l.latency > 0 {
-		rl := int64(rand.Int31n(int32(l.latency)))
-		l.allDelay += rl
-		return rl
+func (l *LatencyActor) randLatency(inout bool) int64 {
+	if inout {
+		if l.inLatency > 0 {
+			rl := int64(rand.Int31n(int32(l.inLatency)))
+			l.inDelay += rl
+			return rl
+		}
+	} else {
+		if l.outLatency > 0 {
+			rl := int64(rand.Int31n(int32(l.outLatency)))
+			l.outDelay += rl
+			return rl
+		}
 	}
 	return 0
 }
 
-func (l *LatencyActor) extend(ctx context.Context, isSvr bool, msg []byte) {
-	l.msgs = append(l.msgs, &latencyMsg{isSvr: isSvr, msg: msg, at: time.Now().UnixMilli() + l.randLatency()})
+func (l *LatencyActor) extend(ctx context.Context, inout bool, msg []byte) {
+	if inout {
+		l.inBytes += uint32(len(msg))
+	} else {
+		l.outBytes += uint32(len(msg))
+	}
+	l.msgs = append(l.msgs, &latencyMsg{inout: inout, msg: msg, at: time.Now().UnixMilli() + l.randLatency(inout)})
 }
 
 type RegisterSendToSvrReq struct {
@@ -136,11 +174,11 @@ type RecvFromCliReq struct {
 
 // 异步接收client数据
 func (l *LatencyActor) RecvFromCli(ctx context.Context, req *RecvFromCliReq) {
-	if l.isLoss() {
+	if l.isLoss(false, len(req.Msg)) {
 		return
 	}
 
-	l.extend(ctx, true, req.Msg)
+	l.extend(ctx, false, req.Msg)
 }
 
 type RecvFromSvrReq struct {
@@ -149,11 +187,11 @@ type RecvFromSvrReq struct {
 
 // 异步接收server数据
 func (l *LatencyActor) RecvFromSvr(ctx context.Context, req *RecvFromSvrReq) {
-	if l.isLoss() {
+	if l.isLoss(true, len(req.Msg)) {
 		return
 	}
 
-	l.extend(ctx, false, req.Msg)
+	l.extend(ctx, true, req.Msg)
 }
 
 func (l *LatencyActor) tickLoop(ctx context.Context) {
@@ -163,10 +201,10 @@ func (l *LatencyActor) tickLoop(ctx context.Context) {
 		if m.at > now {
 			msgs = append(msgs, m)
 		} else {
-			if m.isSvr && l.sendToSvr != nil {
-				l.sendToSvr(ctx, m.msg)
-			} else if !m.isSvr && l.sendToCli != nil {
+			if m.inout && l.sendToCli != nil {
 				l.sendToCli(ctx, m.msg)
+			} else if !m.inout && l.sendToSvr != nil {
+				l.sendToSvr(ctx, m.msg)
 			}
 		}
 	}
