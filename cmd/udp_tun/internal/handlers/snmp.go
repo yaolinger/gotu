@@ -113,7 +113,7 @@ func (sts *singleTunSnmp) add(s *tunSnmpBase) {
 func (sts *singleTunSnmp) close(ctx context.Context) {
 	_tunSnmp.total.add(sts.clone())
 
-	xcommon.PrintTable(ctx, []string{"udp(c:client,p:proxy)", "c2p-bytes(B)", "c2p-packets", "p2c-bytes(B)", "p2c-packets", "p-delay-90%(ms)", "p-delay-95%(ms)", "p-delay-99%(ms)", "p-delay-100%(ms)"}, [][]string{sts.values(ctx), _tunSnmp.total.values(ctx)})
+	xcommon.PrintTable(ctx, []string{"udp(l:listen,p:proxy)", "l2p-bytes(B)", "l2p-packets", "p2l-bytes(B)", "p2l-packets", "p-delay-90%(ms)", "p-delay-95%(ms)", "p-delay-99%(ms)", "p-delay-100%(ms)"}, [][]string{sts.values(ctx), _tunSnmp.total.values(ctx)})
 
 	_tunSnmp.mu.Lock()
 	delete(_tunSnmp.snmps, sts.id)
