@@ -30,6 +30,7 @@
       ![1679884422924](image/README/1679884422924.png)
 
       client proxy 数据统计
+
       ![1680419163016](image/README/1680419163016.png)
 
       server proxy 数据统计(开启出站延迟)
