@@ -15,30 +15,42 @@ type TCPCliArgs struct {
 type TCPClient struct {
 	sock   *TCPSocket
 	bufMgr *bufferManager
+	arg    *TCPCliArgs
 }
 
 func NewTCPClient(ctx context.Context, arg TCPCliArgs) (*TCPClient, error) {
-	tcpAddr, err := net.ResolveTCPAddr(tcpNetwork, arg.Addr)
-	if err != nil {
-		return nil, err
-	}
-
-	conn, err := net.DialTCP(tcpNetwork, nil, tcpAddr)
-	if err != nil {
-		return nil, err
-	}
-
 	bufMgr := newBufferManager()
 
-	sock := newTCPSocket(ctx, TCPSocketArgs{
+	cli := &TCPClient{bufMgr: bufMgr, arg: &arg}
+	if err := cli.newSocket(ctx); err != nil {
+		return nil, err
+	}
+	return cli, nil
+}
+
+func (cli *TCPClient) newSocket(ctx context.Context) error {
+	tcpAddr, err := net.ResolveTCPAddr(tcpNetwork, cli.arg.Addr)
+	if err != nil {
+		return err
+	}
+	conn, err := net.DialTCP(tcpNetwork, nil, tcpAddr)
+	if err != nil {
+		return err
+	}
+	cli.sock = newTCPSocket(ctx, TCPSocketArgs{
 		conn:           conn,
-		readBufferPool: bufMgr.newBufferPool(),
-		onMsg:          arg.OnMsg,
-		onConnect:      arg.OnConnect,
-		onDisconnect:   arg.OnDisconnect,
+		readBufferPool: cli.bufMgr.newBufferPool(),
+		onMsg:          cli.arg.OnMsg,
+		onConnect:      cli.arg.OnConnect,
+		onDisconnect:   cli.arg.OnDisconnect,
 		releaseFn:      func(ctx context.Context, ts *TCPSocket) {},
 	})
-	return &TCPClient{sock: sock, bufMgr: bufMgr}, nil
+	return nil
+}
+
+func (cli *TCPClient) Reconnect(ctx context.Context) error {
+	cli.sock.Close(ctx)
+	return cli.newSocket(ctx)
 }
 
 func (cli *TCPClient) Close(ctx context.Context) {

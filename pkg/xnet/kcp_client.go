@@ -9,6 +9,8 @@ import (
 type KCPClient struct {
 	sock   *KCPSocket
 	bufMgr *bufferManager
+
+	arg *KCPClientArgs
 }
 
 type KCPClientArgs struct {
@@ -20,24 +22,34 @@ type KCPClientArgs struct {
 }
 
 func NewKCPClient(ctx context.Context, arg KCPClientArgs) (*KCPClient, error) {
-	conn, err := kcp.DialWithOptions(arg.Addr, nil, kcpFecDataShards, kcpFecParityShards)
-	if err != nil {
+	bufMgr := newBufferManager()
+	cli := &KCPClient{bufMgr: bufMgr, arg: &arg}
+	if err := cli.newSocket(ctx); err != nil {
 		return nil, err
 	}
-	bufMgr := newBufferManager()
+	return cli, nil
+}
 
+func (cli *KCPClient) newSocket(ctx context.Context) error {
+	conn, err := kcp.DialWithOptions(cli.arg.Addr, nil, kcpFecDataShards, kcpFecParityShards)
+	if err != nil {
+		return err
+	}
 	sock, err := newKCPSocket(ctx, kcpSocketArgs{
 		conn:         conn,
-		mux:          newKCPMux(arg.OnMsg, arg.IsInline, false),
-		onConnect:    arg.OnConnect,
-		onDisconnect: arg.OnDisconnect,
+		mux:          newKCPMux(cli.arg.OnMsg, cli.arg.IsInline, false),
+		onConnect:    cli.arg.OnConnect,
+		onDisconnect: cli.arg.OnDisconnect,
 		releaseFn:    func(ctx context.Context, sock *KCPSocket) {},
-		readBufPool:  bufMgr.newBufferPool(),
+		readBufPool:  cli.bufMgr.newBufferPool(),
 	})
-	if err != nil {
-		return nil, err
-	}
-	return &KCPClient{sock: sock, bufMgr: bufMgr}, nil
+	cli.sock = sock
+	return err
+}
+
+func (cli *KCPClient) Reconnect(ctx context.Context) error {
+	cli.sock.Close(ctx)
+	return cli.newSocket(ctx)
 }
 
 func (cli *KCPClient) Close(ctx context.Context) {

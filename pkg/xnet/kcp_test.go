@@ -26,6 +26,7 @@ func TestKCPServer(t *testing.T) {
 			xlog.Get(ctx).Info("Cli disconnect")
 		},
 		OnMsg: xmsg.ParseMsgWarp(func(ctx context.Context, arg xmsg.MsgArgs) error {
+			defer wg.Done()
 			xlog.Get(ctx).Info("Svr recv msg", zap.Any("msg", string(arg.Payload)))
 			sock := arg.State.(xnet.Socket)
 			msg, err := xmsg.PackMsg(ctx, xmsg.PackMsgArgs{
@@ -49,7 +50,7 @@ func TestKCPServer(t *testing.T) {
 			xlog.Get(ctx).Info("Svr disconnect")
 		},
 		OnMsg: xmsg.ParseMsgWarp(func(ctx context.Context, arg xmsg.MsgArgs) error {
-			defer wg.Done()
+
 			xlog.Get(ctx).Info("Cli recv msg", zap.Any("msg", string(arg.Payload)))
 			return nil
 		}),
@@ -69,11 +70,13 @@ func TestKCPServer(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
-		err = cli.SendMsg(ctx, msg)
-		if err != nil {
+		if err = cli.SendMsg(ctx, msg); err != nil {
 			panic(err)
 		}
 		time.Sleep(100 * time.Millisecond)
+		if err = cli.Reconnect(ctx); err != nil {
+			panic(err)
+		}
 	}
 
 	wg.Wait()

@@ -6,6 +6,7 @@ import (
 	"gotu/pkg/xlog"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
@@ -24,7 +25,8 @@ type UDPServer struct {
 	onConnect    OnConnect
 	onDisconnect OnDisconnect
 
-	sock *UDPSocket
+	sock atomic.Value
+	//sock *UDPSocket
 
 	mu       sync.Mutex
 	sessions map[string]*UDPSession
@@ -49,9 +51,7 @@ func NewUDPServer(ctx context.Context, arg UDPSvrArgs) (*UDPServer, error) {
 		sessions:     make(map[string]*UDPSession),
 		closeCh:      make(chan struct{}),
 	}
-
-	sock := NewUDPSocket(ctx, UDPSocketArgs{isServer: true, conn: conn, onMsg: svr.udpOnMsg})
-	svr.sock = sock
+	svr.sock.Store(NewUDPSocket(ctx, UDPSocketArgs{isServer: true, conn: conn, onMsg: svr.udpOnMsg}))
 
 	svr.wg.Add(1)
 	go svr.checkLoop(ctx, arg.Timeout)
@@ -104,13 +104,13 @@ func (svr *UDPServer) udpOnMsg(ctx context.Context, msg []byte, addr *net.UDPAdd
 			onMsg:        svr.onMsg,
 			onConnect:    svr.onConnect,
 			onDisconnect: svr.onDisconnect,
-			sendMsg:      svr.sock.sendMsg,
+			sendMsg:      svr.sock.Load().(*UDPSocket).sendMsg,
 			now:          now,
 		})
 		svr.addSession(ctx, session)
 	}
 	if err := session.recvMsg(msg, now); err != nil {
-		xlog.Get(ctx).Warn("UDP session  recv msg failed.", zap.Any("err", err))
+		xlog.Get(ctx).Warn("UDP session recv msg failed.", zap.Any("err", err))
 	}
 }
 
@@ -141,7 +141,7 @@ func (svr *UDPServer) Close(ctx context.Context) {
 	}
 	svr.mu.Unlock()
 
-	svr.sock.close(ctx)
+	svr.sock.Load().(*UDPSocket).close(ctx)
 	close(svr.closeCh)
 	svr.wg.Wait()
 }

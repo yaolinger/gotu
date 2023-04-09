@@ -80,7 +80,7 @@ func (svr *WSServer) start(ctx context.Context) {
 	defer svr.wg.Done(ctx)
 	go func() {
 		if err := svr.httpSrv.ListenAndServe(); err != nil {
-			panic(err)
+			xlog.Get(ctx).Warn("Http server stop failed.", zap.Any("err", err))
 		}
 	}()
 }
