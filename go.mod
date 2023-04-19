@@ -3,6 +3,7 @@ module gotu
 go 1.18
 
 require (
+	github.com/caarlos0/env/v8 v8.0.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/liushuochen/gotable v0.0.0-20221119160816-1113793e7092
 	github.com/pkg/errors v0.9.1

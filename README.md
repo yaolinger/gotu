@@ -12,6 +12,7 @@
   * xactor：actor模式
   * xcommon：通用模块
   * xlatency：延迟模拟模块
+  * xenv：环境变量读取
 * script：脚本
   * build_all.sh：编译
 * cmd：逻辑代码
