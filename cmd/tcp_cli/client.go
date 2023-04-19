@@ -42,10 +42,10 @@ func (tcli *TClient) Start(ctx context.Context) {
 				return &TcpClientState{}
 			},
 			OnDisconnect: func(ctx context.Context, state interface{}) {
-				s := state.(*TcpClientState)
-				if s.count != 0 {
-					//xlog.Get(ctx).Info("Client disconnect", zap.Any("average delay(ms)", s.delay/int64(s.count)))
-				}
+				// s := state.(*TcpClientState)
+				// if s.count != 0 {
+				// 	//xlog.Get(ctx).Info("Client disconnect", zap.Any("average delay(ms)", s.delay/int64(s.count)))
+				// }
 			},
 			OnMsg: xmsg.ParseMsgWarp(func(ctx context.Context, arg xmsg.MsgArgs) error {
 				state := arg.State.(*TcpClientState)
@@ -63,6 +63,7 @@ func (tcli *TClient) Start(ctx context.Context) {
 
 		clis = append(clis, cli)
 
+		// 降低并发创建压力
 		time.Sleep(100 * time.Microsecond)
 
 		wg.Add(1)
