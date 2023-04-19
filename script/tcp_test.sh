@@ -22,7 +22,7 @@ start() {
 
     # 启动tcp cli
     for cli in "${clis[@]}"; do
-        docker run -d --sysctl net.ipv4.ip_local_port_range="15000 65000"  --env ADDR=$svrADDR --env NUM=10000 --name $cli gotu_tcp_cli /bin/bash
+        docker run -d --sysctl net.ipv4.ip_local_port_range="15000 65000"  --env ADDR=$svrADDR --env NUM=35000 --name $cli gotu_tcp_cli /bin/bash
     done
 }
 

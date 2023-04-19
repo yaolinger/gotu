@@ -16,10 +16,10 @@
 * script：脚本
   * build_all.sh：编译
   * build_docker.sh：docker 打包
-  * tcp_test.sh：tcp 并发连接测试
+  * [tcp_test.sh](./doc/README_tcp_test.md)：tcp负载测试
 * cmd：逻辑代码
   * udp_cli：测试udp client
   * udp_svr：测试udp server
   * tcp_cli：测试tcp client
   * tcp_svr：测试tcp server
-  * [udp_tun](./README_udp_tun.md)：udp流量代理工具
+  * [udp_tun](./doc/README_udp_tun.md)：udp流量代理工具
