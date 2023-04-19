@@ -170,3 +170,7 @@ func (sock *Websocket) SendMsg(ctx context.Context, msg []byte) error {
 func (sock *Websocket) RemoteAddr() net.Addr {
 	return sock.conn.RemoteAddr()
 }
+
+func (sock *Websocket) LocalAddr() net.Addr {
+	return sock.conn.LocalAddr()
+}

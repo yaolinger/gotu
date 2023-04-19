@@ -25,8 +25,8 @@ type UDPServer struct {
 	onConnect    OnConnect
 	onDisconnect OnDisconnect
 
-	sock atomic.Value
-	//sock *UDPSocket
+	sock  atomic.Value
+	local net.Addr
 
 	mu       sync.Mutex
 	sessions map[string]*UDPSession
@@ -52,6 +52,7 @@ func NewUDPServer(ctx context.Context, arg UDPSvrArgs) (*UDPServer, error) {
 		closeCh:      make(chan struct{}),
 	}
 	svr.sock.Store(NewUDPSocket(ctx, UDPSocketArgs{isServer: true, conn: conn, onMsg: svr.udpOnMsg}))
+	svr.local = conn.LocalAddr()
 
 	svr.wg.Add(1)
 	go svr.checkLoop(ctx, arg.Timeout)
@@ -101,6 +102,7 @@ func (svr *UDPServer) udpOnMsg(ctx context.Context, msg []byte, addr *net.UDPAdd
 		session = NewUDPSession(subCtx, UDPSessionArgs{
 			cancel:       cancel,
 			addr:         addr,
+			local:        svr.local,
 			onMsg:        svr.onMsg,
 			onConnect:    svr.onConnect,
 			onDisconnect: svr.onDisconnect,

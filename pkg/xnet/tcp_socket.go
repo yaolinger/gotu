@@ -200,3 +200,7 @@ func (sock *TCPSocket) Close(ctx context.Context) {
 func (sock *TCPSocket) RemoteAddr() net.Addr {
 	return sock.conn.RemoteAddr()
 }
+
+func (sock *TCPSocket) LocalAddr() net.Addr {
+	return sock.conn.LocalAddr()
+}

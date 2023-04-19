@@ -232,3 +232,7 @@ func (sock *KCPSocket) closeOnce() {
 func (sock *KCPSocket) RemoteAddr() net.Addr {
 	return sock.conn.RemoteAddr()
 }
+
+func (sock *KCPSocket) LocalAddr() net.Addr {
+	return sock.conn.LocalAddr()
+}

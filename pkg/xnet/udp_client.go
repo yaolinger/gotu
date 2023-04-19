@@ -80,6 +80,7 @@ func newBuiltInUDP(ctx context.Context, arg UDPCliArgs) (*builtInUDP, error) {
 	session := NewUDPSession(subCtx, UDPSessionArgs{
 		cancel:       cancel,
 		addr:         udpAddr,
+		local:        conn.LocalAddr(),
 		onMsg:        arg.OnMsg,
 		onConnect:    arg.OnConnect,
 		onDisconnect: arg.OnDisconnect,

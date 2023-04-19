@@ -16,6 +16,7 @@ import (
 type UDPSessionArgs struct {
 	cancel       context.CancelFunc
 	addr         *net.UDPAddr
+	local        net.Addr
 	onMsg        OnHandlerOnce
 	onConnect    OnConnect
 	onDisconnect OnDisconnect
@@ -26,6 +27,7 @@ type UDPSessionArgs struct {
 type UDPSession struct {
 	cancel       context.CancelFunc
 	addr         *net.UDPAddr
+	local        net.Addr
 	onMsg        OnHandlerOnce
 	onConnect    OnConnect
 	onDisconnect OnDisconnect
@@ -43,6 +45,7 @@ func NewUDPSession(ctx context.Context, arg UDPSessionArgs) *UDPSession {
 	session := &UDPSession{
 		cancel:       arg.cancel,
 		addr:         arg.addr,
+		local:        arg.local,
 		onMsg:        arg.onMsg,
 		onConnect:    arg.onConnect,
 		onDisconnect: arg.onDisconnect,
@@ -102,6 +105,10 @@ func (session *UDPSession) recvMsg(msg []byte, now int64) error {
 
 func (session *UDPSession) remoteAddr() *net.UDPAddr {
 	return session.addr
+}
+
+func (session *UDPSession) LocalAddr() net.Addr {
+	return session.local
 }
 
 func (session *UDPSession) RemoteAddr() net.Addr {

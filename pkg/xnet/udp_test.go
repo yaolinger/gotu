@@ -22,6 +22,7 @@ func TestUDP(t *testing.T) {
 	svr, err := xnet.NewUDPServer(ctx, xnet.UDPSvrArgs{
 		Addr: addr,
 		OnConnect: func(ctx context.Context, sock xnet.Socket) interface{} {
+			xlog.Get(ctx).Debug("Svr connect", zap.Any("remote", sock.RemoteAddr()), zap.Any("local", sock.LocalAddr()))
 			return sock
 		},
 		OnDisconnect: func(ctx context.Context, state interface{}) {
@@ -57,6 +58,7 @@ func TestUDP(t *testing.T) {
 	cli, err := xnet.NewUDPClient(ctx, xnet.UDPCliArgs{
 		Addr: addr,
 		OnConnect: func(ctx context.Context, sock xnet.Socket) interface{} {
+			xlog.Get(ctx).Debug("Cli connect", zap.Any("local", sock.LocalAddr()), zap.Any("remote", sock.RemoteAddr()))
 			return nil
 		},
 		OnDisconnect: func(ctx context.Context, state interface{}) {

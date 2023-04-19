@@ -13,7 +13,7 @@ const (
 	readBufferSize = 1024
 
 	writeTimeout = 10 * time.Second // 写超时时间
-	readTimeout  = 10 * time.Second // 读超时时间
+	readTimeout  = 60 * time.Second // 读超时时间
 
 	writeChanLimit = 200 // 写channel大小
 
@@ -49,6 +49,7 @@ type OnDisconnect func(ctx context.Context, state interface{})
 type Socket interface {
 	SendMsg(ctx context.Context, msg []byte) error
 	RemoteAddr() net.Addr
+	LocalAddr() net.Addr
 }
 
 // udp 消息处理
