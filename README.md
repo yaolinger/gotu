@@ -13,6 +13,7 @@
   * xcommon：通用模块
   * xlatency：延迟模拟模块
   * xenv：环境变量读取
+  * [xregistry](./pkg/xregistry/README.md)：注册器
 * script：脚本
   * build_all.sh：编译
   * build_docker.sh：docker 打包
